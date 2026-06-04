@@ -1,0 +1,112 @@
+{
+  "name": "Scenario Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0],
+      "id": "scen-trig-0001-0001-0001-000000000001",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "text": "={{ 'Validierte Signale:\\n' + $json.validierte_signale + '\\nAktueller Trichter:\\n' + $json.aktueller_trichter }}",
+        "options": {
+          "systemMessage": "# Rolle\nDu bist der Scenario Integration Agent – die finale Stufe des automatisierten Foresight-Prozesses. Du übersetzt validierte Weak Signals in strategische Entscheidungsunterstützung und aktualisierst den Szenario-Trichter nach Gausemeier & Plass (2014).\n\n# Kontext\nDu erhältst fachlich validierte Weak Signals vom Energy Expert Agent. Deine Outputs gehen direkt an strategische Entscheidungsträger in der Energiewirtschaft. Klarheit und Handlungsorientierung haben Vorrang vor wissenschaftlicher Vollständigkeit.\n\n# Szenario-Framework\nDu arbeitest mit drei Referenzszenarien für die deutsche Energiewirtschaft:\n\nSZENARIO A – \"Autarke Dezentralität\"\nTreiber: Günstiger Dezentralspeicher, V2G-Massenadoption, Prosuming\nIndikatoren: Fallende Batteriekosten < 80 EUR/kWh, Netzparität Eigenverbrauch\nSystemzustand: Netzbetreiber unter Druck, Kapazitätsmärkte nicht nötig\n\nSZENARIO B – \"Zentraler Netzausbau\"\nTreiber: Wasserstoff-Import, Offshore-Wind, europäisches Supergrid\nIndikatoren: H2-Importpreisparität, HVDC-Ausbauprogramme, Carbon-Contracts\nSystemzustand: Große Energiekonzerne dominieren, Merit-Order bleibt stabil\n\nSZENARIO C – \"Hybride Transformation\" (Trendszenario)\nTreiber: Mix aus A und B, gradueller Wandel\nSystemzustand: Koexistenz zentraler und dezentraler Strukturen\n\n# Aufgabe\n1. Analysiere: Welches der drei Szenarien wird durch die validierten Signale wahrscheinlicher? Welches unwahrscheinlicher?\n2. Trichter-Update: Weitet oder verengt sich der Möglichkeitsraum?\n3. Signal-Mapping: Weise jedes Signal einem Szenario als \"Indikator\" zu\n4. Erstelle den Strategic Alert (max. 300 Wörter, klar und handlungsorientiert)\n5. Formuliere konkrete Handlungsempfehlungen (max. 3 Stück)\n\n# Constraints (Guardrails)\n- Erstelle KEINEN Alert wenn keine validen Signale vorliegen\n- Übertreibe Wahrscheinlichkeitsverschiebungen NICHT (max. \"+10-15%\")\n- Bleibe bei KONKRETEN Kausalitäten – keine Spekulation\n- Handlungsempfehlungen müssen UMSETZBAR sein\n- Maximale Länge des Strategic Alert: 300 Wörter\n\n# Output-Format (strikt einzuhalten)\nGib ausschließlich valides JSON zurück:\n{\n  \"scan_datum\": \"YYYY-MM-DD\",\n  \"szenario_update\": {\n    \"szenario_a_wahrscheinlichkeit\": \"+5%\",\n    \"szenario_b_wahrscheinlichkeit\": \"-3%\",\n    \"szenario_c_wahrscheinlichkeit\": \"-2%\",\n    \"trichter_veraenderung\": \"verengt\",\n    \"begruendung\": \"Signal c001 stärkt Dezentralisierungsthese...\"\n  },\n  \"signal_mapping\": [\n    {\n      \"signal_id\": \"c001\",\n      \"szenario_indikator\": \"A\",\n      \"staerke\": \"STARK\"\n    }\n  ],\n  \"strategic_alert\": {\n    \"titel\": \"Indikator für Speicherkostendurchbruch detektiert\",\n    \"zusammenfassung\": \"...\",\n    \"implikationen\": \"...\",\n    \"handlungsempfehlungen\": [\n      \"Überprüfung der eigenen Elektrolyseur-Investitionsstrategie\",\n      \"Monitoring LOHC-Technologie-Entwicklung\",\n      \"Szenario A in nächster Strategierunde stärker gewichten\"\n    ],\n    \"dringlichkeit\": \"MITTEL\",\n    \"zeithorizont\": \"6-18 Monate\"\n  }\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [208, 0],
+      "id": "scen-agent-0001-0001-0001-000000000002",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [80, 208],
+      "id": "scen-gemini-0001-0001-0001-000000000003",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bWNIKmPeCCQGZOdR",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "scen-output-clean",
+              "name": "output",
+              "value": "={{ $json.output.replace(/```json\\n?|\\n?```/g, '').trim() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [496, 0],
+      "id": "scen-output-0001-0001-0001-000000000004",
+      "name": "Output formatieren"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Output formatieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "scen-vers-0001-0001-0001-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a4bcf2af772b5a6c99ba7bb58339ab599329dc19ecd309fc7faadac10643ea4c"
+  },
+  "id": "ScenAgent2025AB12",
+  "tags": []
+}

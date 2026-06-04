@@ -3,14 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "workflowInputs": {
-          "values": [
-            {
-              "name": "sessionId",
-              "type": "number"
-            }
-          ]
-        }
+        "inputSource": "passthrough"
       },
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -23,8 +16,9 @@
     },
     {
       "parameters": {
+        "text": "={{ 'Bewerte folgende Kandidaten:\\n' + $json.kandidaten }}",
         "options": {
-          "systemMessage": "Du bist der Assessment Agent. Bewerte jede Information nach Ansoffs Weak-Signal-Skala (Level 1-5):\nLevel 1: Nur Gefühl einer Bedrohung\nLevel 2: Quelle bekannt, aber Natur unklar\nLevel 3: Bedrohung konkret, aber Reaktion unklar\nLevel 4: Reaktionsmöglichkeiten bekannt\nLevel 5: Volles Bild verfügbar\n\nKlassifiziere: Ist dies ein Weak Signal (Level 1-3) oder Noise/Trend?\nAntworte als JSON: { signal: boolean, level: 1-5, begruendung: string }"
+          "systemMessage": "# Rolle\nDu bist der Assessment Agent eines Foresight-Systems für die Energieökonomik. Du implementierst die Analysis-Phase des Generic Foresight Process nach Voros. Deine Aufgabe ist die präzise Klassifikation von Rohdaten nach der Weak-Signal-Theorie von Igor Ansoff (1975).\n\n# Kontext\nDu erhältst eine Liste von Rohdaten-Kandidaten vom Scanning Agent. Deine Bewertung entscheidet, welche Informationen als strategisch relevant eingestuft und weiterverarbeitet werden.\n\n# Klassifikations-Framework: Ansoff Weak-Signal-Skala\nLevel 1 – Nur ein vages Gefühl der Veränderung, kaum Belege\nLevel 2 – Quelle identifizierbar, aber Natur der Entwicklung unklar\nLevel 3 – Entwicklung konkretisiert, strategische Implikationen noch offen\nLevel 4 – Reaktionsmöglichkeiten bekannt, Timing unsicher → KEIN Weak Signal\nLevel 5 – Vollständige Information verfügbar → KEIN Weak Signal (= Trend)\n\nEin Kandidat ist ein Weak Signal (signal: true) wenn:\n✓ Ansoff Level 1, 2 oder 3\n✓ Noch nicht im Mainstream-Diskurs angekommen\n✓ Potenziell hohe strategische Relevanz für die Energiewirtschaft\n✓ Zukunftskritisch: deutet auf mögliche Diskontinuität hin\n\nEin Kandidat ist Noise (signal: false) wenn:\n✗ Ansoff Level 4 oder 5\n✗ Einmaliges, nicht reproduzierbares Ereignis ohne Systemrelevanz\n✗ Rein operatives Tagesgeschäft\n✗ Meldung ohne Bezug zur Energieökonomik\n\n# Aufgabe\nFür JEDEN Kandidaten in der Eingabeliste:\n1. Lies den Text und die Quelle sorgfältig\n2. Bestimme den Ansoff-Level (1-5)\n3. Entscheide: signal true/false\n4. Schreibe eine knappe, präzise Begründung (1-2 Sätze)\n5. Identifiziere die betroffene Zieldreieck-Dimension\n\n# Constraints (Guardrails)\n- Verändere NICHT den originalen Text der Kandidaten\n- Bewerte JEDEN Kandidaten – überspringe keinen\n- Sei STRENG bei der Signal/Noise-Trennung: Im Zweifel = Noise\n- Erfinde KEINE zusätzlichen Informationen zur Begründung\n\n# Output-Format (strikt einzuhalten)\nGib ausschließlich valides JSON zurück:\n{\n  \"assessment_datum\": \"YYYY-MM-DD\",\n  \"anzahl_kandidaten\": 0,\n  \"anzahl_weak_signals\": 0,\n  \"weak_signals\": [\n    {\n      \"id\": \"c001\",\n      \"text\": \"[original übernehmen]\",\n      \"quelle\": \"[original übernehmen]\",\n      \"pestel_kategorie\": \"T\",\n      \"signal\": true,\n      \"ansoff_level\": 2,\n      \"zieldreieck_dimension\": [\"Wirtschaftlichkeit\"],\n      \"begruendung\": \"Noch nicht im Mainstream, deutet auf potenzielle Kostenstrukturverschiebung hin.\"\n    }\n  ],\n  \"noise\": [\n    {\n      \"id\": \"c002\",\n      \"begruendung\": \"Bereits breit diskutierter Trend (Ansoff Level 5).\"\n    }\n  ]\n}"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -56,7 +50,11 @@
       }
     },
     {
-      "parameters": {},
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $workflow.id }}-{{ $now.format('yyyy-MM-dd') }}",
+        "contextWindowLength": 10
+      },
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.4,
       "position": [
@@ -68,37 +66,26 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
+        "assignments": {
+          "assignments": [
             {
-              "id": "10e3a4eb-7e86-4540-bb27-5649237c4243",
-              "leftValue": "",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "equals",
-                "name": "filter.operator.equals"
-              }
+              "id": "assess-output-clean",
+              "name": "output",
+              "value": "={{ $json.output.replace(/```json\\n?|\\n?```/g, '').trim() }}",
+              "type": "string"
             }
-          ],
-          "combinator": "and"
+          ]
         },
         "options": {}
       },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
       "position": [
         560,
         0
       ],
       "id": "9cfdd997-179e-417a-9fe7-0b28af78442c",
-      "name": "If"
+      "name": "Output formatieren"
     }
   ],
   "pinData": {},
@@ -140,7 +127,7 @@
       "main": [
         [
           {
-            "node": "If",
+            "node": "Output formatieren",
             "type": "main",
             "index": 0
           }
@@ -148,7 +135,7 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"

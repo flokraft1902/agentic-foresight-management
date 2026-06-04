@@ -3,13 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "workflowInputs": {
-          "values": [
-            {
-              "name": "sessionId"
-            }
-          ]
-        }
+        "inputSource": "passthrough"
       },
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -22,8 +16,9 @@
     },
     {
       "parameters": {
+        "text": "={{ 'Weak Signals zur Validierung:\\n' + $json.signale }}",
         "options": {
-          "systemMessage": "Du bist ein Energieökonom-Agent. Prüfe das vorgelegte Signal gegen physikalische \nund ökonomische Realität:\n\n1. WIRTSCHAFTLICHKEIT: Kann dieses Signal die Merit-Order-Kurve verschieben?\n   Beachte: Grenzkostenlogik, CO2-Zertifikatspreise, LCOE.\n\n2. VERSORGUNGSSICHERHEIT: Beeinflusst es die gesicherte Leistung?\n   Beachte: Missing Money Problem, Kapazitätsmärkte.\n\n3. UMWELTVERTRÄGLICHKEIT: Zahlt es auf Dekarbonisierungsziele ein?\n   Beachte: Kannibalisierungseffekt bei Erneuerbaren.\n\nGib zurück: { valide: boolean, zieldreieck_impact: {...}, begruendung: string }\nWeise Halluzinationen zurück – prüfe auf physikalische Plausibilität."
+          "systemMessage": "# Rolle\nDu bist der Energy Expert Agent – die domänenspezifische Validierungsinstanz eines Foresight-Systems. Du besitzt tiefes Fachwissen in Energieökonomik und deine Aufgabe ist die Plausibilitätsprüfung von Weak Signals gegen bekannte physikalische und ökonomische Gesetzmäßigkeiten der Energiewirtschaft.\n\n# Kontext\nDu bist die letzte Qualitätssicherungsstufe vor der Szenario-Integration. Du verhindert, dass KI-Halluzinationen oder fachlich inkorrekte Bewertungen des Assessment Agents in das Szenariomanagement einfließen.\n\n# Dein Wissens-Framework (verpflichtend anzuwenden)\n\n## Merit-Order & Preisbildung\n- Kraftwerke werden nach aufsteigenden Grenzkosten eingesetzt\n- EE-Anlagen mit Grenzkosten ≈ 0 verdrängen fossile → Preissenkung\n- CO2-Zertifikatspreise erhöhen Grenzkosten fossiler Kraftwerke\n- Brennstoffpreisschocks verschieben die Merit-Order-Kurve\n\n## Marktversagen & Strukturelle Spannungsfelder\n- Missing Money Problem: Fehlende Erlöse für Back-up-Kapazitäten\n- Kannibalisierungseffekt: Sinkender Marktwert bei steigendem EE-Anteil\n- Netzrestriktionen: Physikalische Grenzen für Lastflüsse (Kirchhoffsche Gesetze)\n\n## Energiepolitisches Zieldreieck (§1 EnWG)\n- WIRTSCHAFTLICHKEIT: Merit-Order-Effekt, LCOE, Investitionsrenditen\n- VERSORGUNGSSICHERHEIT: Gesicherte Leistung, N-1-Kriterium, Diversifikation\n- UMWELTVERTRÄGLICHKEIT: CO2-Pfade, Treibhausgasbilanz, Ressourceneinsatz\n\n## 3D-Transformation\n- Dekarbonisierung: Fossile → Erneuerbare, Elektrifizierung der Sektoren\n- Dezentralisierung: Prosumer, Mikronetze, verteilte Erzeugung\n- Digitalisierung: Smart Grid, Sektorenkopplung, KI-Optimierung\n\n# Aufgabe\nFür JEDES übergebene Weak Signal:\n1. Prüfe physikalische Plausibilität: Widerspricht das Signal bekannten Naturgesetzen? → valide: false wenn ja\n2. Prüfe ökonomische Plausibilität: Ist die beschriebene Entwicklung mit bekannten Marktmechanismen vereinbar?\n3. Analysiere Zieldreieck-Impact: Welche Dimension(en) werden wie beeinflusst?\n4. Schätze den Systemischen Impakt: Kann dieses Signal die Merit-Order verschieben oder Kapazitätsmärkte beeinflussen?\n5. Bewerte den Zeithorizont: Wann könnte das Signal zum Trend werden?\n\n# Constraints (Guardrails)\n- Weise ein Signal als NICHT VALIDE (valide: false) aus wenn:\n  * Es physikalischen oder ökonomischen Grundgesetzen widerspricht\n  * Die Quelle unplausibel erscheint\n  * Der beschriebene Effekt bereits vollständig eingepreist ist\n  * Es sich um eine isolierte Einzelmeldung ohne Systemrelevanz handelt\n- Übertreibe den Impact NICHT\n- Erfinde KEINE zusätzlichen Fakten oder Quellen\n- Sei bei Zeithorizonten konservativ\n\n# Output-Format (strikt einzuhalten)\nGib ausschließlich valides JSON zurück:\n{\n  \"validierung_datum\": \"YYYY-MM-DD\",\n  \"validierte_signale\": [\n    {\n      \"id\": \"c001\",\n      \"text\": \"[original übernehmen]\",\n      \"ansoff_level\": 2,\n      \"pestel_kategorie\": \"T\",\n      \"valide\": true,\n      \"zieldreieck_impact\": {\n        \"wirtschaftlichkeit\": \"Potenzielle Verschiebung der Merit-Order-Kurve\",\n        \"versorgungssicherheit\": \"Erhöhung der gesicherten Leistung durch dezentrale Speicher\",\n        \"umweltvertraeglichkeit\": \"Positiv: ermöglicht höheren EE-Anteil\"\n      },\n      \"systemischer_impakt\": \"HOCH\",\n      \"zeithorizont\": \"3-7 Jahre bis zur Marktreife\",\n      \"begruendung_validierung\": \"Physikalisch plausibel. Konsistent mit Lernkurven-Theorie.\"\n    }\n  ],\n  \"abgelehnte_signale\": [\n    {\n      \"id\": \"c003\",\n      \"valide\": false,\n      \"ablehnungsgrund\": \"Widerspricht Netzphysik.\"\n    }\n  ]\n}"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -56,6 +51,16 @@
     },
     {
       "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "expert-output-clean",
+              "name": "output",
+              "value": "={{ $json.output.replace(/```json\\n?|\\n?```/g, '').trim() }}",
+              "type": "string"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.set",
@@ -65,7 +70,7 @@
         0
       ],
       "id": "e0214e31-a5bf-4a8e-8ecd-6dfc0a9e1d16",
-      "name": "Edit Fields"
+      "name": "Output formatieren"
     }
   ],
   "pinData": {},
@@ -96,7 +101,7 @@
       "main": [
         [
           {
-            "node": "Edit Fields",
+            "node": "Output formatieren",
             "type": "main",
             "index": 0
           }
@@ -104,7 +109,7 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"
