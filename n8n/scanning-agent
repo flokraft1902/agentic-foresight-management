@@ -1,0 +1,166 @@
+{
+  "name": "Scanning Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ebcc8f40-150c-4cd3-91f6-1d37b3872368",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Du bist der Scanning Agent. Durchsuche das Web nach Weak Signals in der Energiebranche \nanhand der PESTEL-Dimensionen. Nutze dein Web-Search-Tool. \nSuche nach: {{$json.suchbegriffe}}\nGib Rohergebnisse als strukturierte Liste zurück."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "350ec1b9-1a07-4d82-84f8-230db5624a2d",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        368,
+        208
+      ],
+      "id": "3ca0a051-861d-4f53-93ae-816d43f380f7",
+      "name": "Search in Tavily",
+      "credentials": {
+        "tavilyApi": {
+          "id": "RnSaU6IiAWynlfqO",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        208
+      ],
+      "id": "76df1209-2def-463e-a2dc-344e48af70b2",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bWNIKmPeCCQGZOdR",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        224,
+        208
+      ],
+      "id": "a062a76f-ebcb-43e1-a3e6-1e8b35b82b85",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "url": "https://smard.api.proxy.bund.dev/app/chart_data/1223/DE/1223_DE_day_1.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        560,
+        0
+      ],
+      "id": "f970b4f6-551d-401d-90a6-ea256db9f863",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7ba5ba1e-4c04-44ba-9b3c-b2c9f535addf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a4bcf2af772b5a6c99ba7bb58339ab599329dc19ecd309fc7faadac10643ea4c"
+  },
+  "id": "OPs2h4Bn71SsI990",
+  "tags": []
+}

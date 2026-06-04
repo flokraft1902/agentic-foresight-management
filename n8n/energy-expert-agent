@@ -1,0 +1,119 @@
+{
+  "name": "Energy Expert Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "sessionId"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "304dc0a8-5e4e-45d9-b881-e4032f1538c1",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Du bist ein Energieökonom-Agent. Prüfe das vorgelegte Signal gegen physikalische \nund ökonomische Realität:\n\n1. WIRTSCHAFTLICHKEIT: Kann dieses Signal die Merit-Order-Kurve verschieben?\n   Beachte: Grenzkostenlogik, CO2-Zertifikatspreise, LCOE.\n\n2. VERSORGUNGSSICHERHEIT: Beeinflusst es die gesicherte Leistung?\n   Beachte: Missing Money Problem, Kapazitätsmärkte.\n\n3. UMWELTVERTRÄGLICHKEIT: Zahlt es auf Dekarbonisierungsziele ein?\n   Beachte: Kannibalisierungseffekt bei Erneuerbaren.\n\nGib zurück: { valide: boolean, zieldreieck_impact: {...}, begruendung: string }\nWeise Halluzinationen zurück – prüfe auf physikalische Plausibilität."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "f443feb7-3c8f-47dd-bdf2-705fbbdd0dbc",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        208
+      ],
+      "id": "b787625d-926f-445a-9629-051a4b74e92c",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bWNIKmPeCCQGZOdR",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        496,
+        0
+      ],
+      "id": "e0214e31-a5bf-4a8e-8ecd-6dfc0a9e1d16",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8adaee69-8ccc-4923-b790-1254dd1a48c6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a4bcf2af772b5a6c99ba7bb58339ab599329dc19ecd309fc7faadac10643ea4c"
+  },
+  "id": "zzjbcS2fWJQ9fikp",
+  "tags": []
+}

@@ -1,0 +1,163 @@
+{
+  "name": "Assessment Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "sessionId",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ed256dcb-a174-46f4-9146-72bfd9e24537",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Du bist der Assessment Agent. Bewerte jede Information nach Ansoffs Weak-Signal-Skala (Level 1-5):\nLevel 1: Nur Gefühl einer Bedrohung\nLevel 2: Quelle bekannt, aber Natur unklar\nLevel 3: Bedrohung konkret, aber Reaktion unklar\nLevel 4: Reaktionsmöglichkeiten bekannt\nLevel 5: Volles Bild verfügbar\n\nKlassifiziere: Ist dies ein Weak Signal (Level 1-3) oder Noise/Trend?\nAntworte als JSON: { signal: boolean, level: 1-5, begruendung: string }"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "4a853a65-4a2d-4482-b639-cceb5001b966",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        208
+      ],
+      "id": "19c35a87-4bcf-4111-bfd2-aa03597e01da",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bWNIKmPeCCQGZOdR",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        224,
+        208
+      ],
+      "id": "4d436ee7-6bb6-400e-b055-f1c042ad726a",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "10e3a4eb-7e86-4540-bb27-5649237c4243",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        560,
+        0
+      ],
+      "id": "9cfdd997-179e-417a-9fe7-0b28af78442c",
+      "name": "If"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0879e170-ce2d-4a18-a328-0bb3f982f3ec",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a4bcf2af772b5a6c99ba7bb58339ab599329dc19ecd309fc7faadac10643ea4c"
+  },
+  "id": "5ChTSJRdKDEsWKys",
+  "tags": []
+}
