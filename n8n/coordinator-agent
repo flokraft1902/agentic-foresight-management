@@ -1,0 +1,262 @@
+{
+  "name": "Foresight Management",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 0],
+      "id": "73f652dd-e6d8-4106-9fff-db1d7952b372",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [256, 288],
+      "id": "b594c0b8-ff0a-48f8-b00d-ed1b9da7549b",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bWNIKmPeCCQGZOdR",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [496, 288],
+      "id": "cc9f6b5a-ff80-449e-9f58-4d90bab71cf8",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Du bist der Koordinations-Agent eines Foresight-Systems für die Energieökonomik (DHBW Stuttgart, Gruppe 11).\n\nDein Prozess folgt dem Generic Foresight Process:\n1. Starte IMMER mit dem Tool 'run_scanning_agent' – übergib relevante PESTEL-Suchbegriffe als Array und einen strategischen Fokus.\n2. Übergib die Rohdaten an 'run_assessment_agent' zur Signal/Noise-Trennung nach Ansoff.\n3. Validiere bestätigte Signale mit 'run_energy_expert_agent' gegen Energieökonomik-Logik (Merit-Order, Zieldreieck).\n4. Rufe 'run_scenario_agent' nur auf, wenn mindestens ein valides Signal existiert.\n\nBewertungsrahmen: Energiepolitisches Zieldreieck (Wirtschaftlichkeit, Versorgungssicherheit, Umweltverträglichkeit).\n\nAktueller Scan-Fokus: Energiewende, Wasserstoff, Speichertechnologien, CO2-Märkte, EEG-Novelle.\n\nGib am Ende eine strukturierte Zusammenfassung aller identifizierten Weak Signals und deren Szenario-Implikationen aus."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [480, 0],
+      "id": "c9752748-5970-49ea-aa07-ba1fea7886a6",
+      "name": "Coordinator Agent"
+    },
+    {
+      "parameters": {
+        "name": "run_scanning_agent",
+        "description": "Searches the web and energy market data sources for potential weak signals in the energy sector. Use this tool FIRST to gather raw information.\nInput: A JSON object with:\n- 'suchbegriffe': array of PESTEL search terms (e.g. [\"EEG-Novelle\", \"Solid State Battery\", \"H2-Importstrategie\"])\n- 'fokus': string describing the strategic focus area (e.g. \"Speichertechnologien und Wasserstoff\")\nOutput: A list of raw signal candidates with source, summary and PESTEL category.",
+        "workflowId": {
+          "__rl": true,
+          "value": "OPs2h4Bn71SsI990",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/OPs2h4Bn71SsI990",
+          "cachedResultName": "Scanning Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "suchbegriffe": "={{ $fromAI('suchbegriffe', 'Array of PESTEL-based search terms for energy sector weak signal detection, e.g. [\"EEG-Novelle\", \"Solid State Battery\"]', 'string') }}",
+            "fokus": "={{ $fromAI('fokus', 'Strategic focus area for this scan run, e.g. Speichertechnologien', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "suchbegriffe",
+              "displayName": "suchbegriffe",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
+              "type": "string"
+            },
+            {
+              "id": "fokus",
+              "displayName": "fokus",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [624, 256],
+      "id": "ae303bd0-305c-49d0-b7dc-0be3f8a086f9",
+      "name": "Call 'Scanning Agent'"
+    },
+    {
+      "parameters": {
+        "name": "run_assessment_agent",
+        "description": "Evaluates raw signal candidates and filters out noise. Classifies each item on Ansoff's weak signal maturity scale (Level 1-5). Only use this tool AFTER run_scanning_agent has returned results.\nInput: A JSON object with:\n- 'kandidaten': string (JSON array) of raw signals from the scanning agent, each with 'text', 'quelle' and 'pestel_kategorie'\nOutput: Filtered list of confirmed weak signals with ansoff_level, signal boolean and begruendung.",
+        "workflowId": {
+          "__rl": true,
+          "value": "5ChTSJRdKDEsWKys",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5ChTSJRdKDEsWKys",
+          "cachedResultName": "Assessment Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kandidaten": "={{ $fromAI('kandidaten', 'JSON string of raw signal candidates from scanning agent, array of objects with text, quelle, pestel_kategorie', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "kandidaten",
+              "displayName": "kandidaten",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [768, 256],
+      "id": "f210dee5-68dd-433d-8d1d-37ba1369ea70",
+      "name": "Call 'Assessment Agent'"
+    },
+    {
+      "parameters": {
+        "name": "run_energy_expert_agent",
+        "description": "Validates weak signals against energy economics domain knowledge to prevent hallucinations. Checks plausibility using Merit-Order logic, the energy policy triangle (Wirtschaftlichkeit, Versorgungssicherheit, Umweltverträglichkeit), and known market mechanisms like the Missing Money Problem or cannibalization effect.\nOnly call this tool AFTER run_assessment_agent has confirmed signals.\nInput: A JSON object with:\n- 'signale': string (JSON array) of assessed signals, each with 'text', 'ansoff_level' and 'pestel_kategorie'\nOutput: Validated signals with zieldreieck_impact object and valide boolean.",
+        "workflowId": {
+          "__rl": true,
+          "value": "zzjbcS2fWJQ9fikp",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/zzjbcS2fWJQ9fikp",
+          "cachedResultName": "Energy Expert Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "signale": "={{ $fromAI('signale', 'JSON string of confirmed weak signals from assessment agent, array of objects with text, ansoff_level, pestel_kategorie', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "signale",
+              "displayName": "signale",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [912, 256],
+      "id": "4cf79623-3602-439b-b084-bbef683b0eff",
+      "name": "Call 'Energy Expert Agent'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Coordinator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Coordinator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Coordinator Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Scanning Agent'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Coordinator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Assessment Agent'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Coordinator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Energy Expert Agent'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Coordinator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "08bb108c-0efb-4509-a970-f6e17e3179df",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a4bcf2af772b5a6c99ba7bb58339ab599329dc19ecd309fc7faadac10643ea4c"
+  },
+  "id": "VdD7m3JdvZSp2W37",
+  "tags": []
+}
