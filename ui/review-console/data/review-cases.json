@@ -1,0 +1,41 @@
+[
+  {
+    "caseId": "test_001",
+    "runId": "run_manual",
+    "stepId": "energy_validation",
+    "agentName": "Energy Expert Agent",
+    "createdAt": "2026-06-10T18:39:22.293Z",
+    "updatedAt": "2026-06-10T18:40:30.076Z",
+    "reviewStatus": "approved",
+    "callbackUrl": "http://localhost:5678/webhook/review-decision-callback",
+    "payload": {},
+    "decision": {
+      "valide": true,
+      "ansoff_level": 2,
+      "signal": true
+    },
+    "reasoningFields": {
+      "claim": "Testfall",
+      "evidence": [
+        "https://example.org"
+      ],
+      "counterpoints": [
+        "keine"
+      ],
+      "uncertainty": "medium",
+      "confidence": 0.74,
+      "policy_checks": {
+        "source_quality_passed": true
+      }
+    },
+    "sources": [
+      {
+        "title": "Testquelle",
+        "url": "https://example.org",
+        "trustScore": 0.8
+      }
+    ],
+    "reviewer": "human.reviewer",
+    "reviewComment": ""
+  }
+]

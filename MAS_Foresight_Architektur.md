@@ -22,6 +22,8 @@
 11. [Guardrails & Fehlerbehandlung](#11-guardrails--fehlerbehandlung)
 12. [n8n Konfigurationsreferenz](#12-n8n-konfigurationsreferenz)
 13. [Deployment & Import/Export](#13-deployment--importexport)
+14. [Human-in-the-Loop & Audit Layer](#14-human-in-the-loop--audit-layer)
+15. [Dedizierte Review UI (Next.js)](#15-dedizierte-review-ui-nextjs)
 
 ---
 
@@ -1005,6 +1007,137 @@ POST /webhook/[gruppe12-webhook-id]
 Content-Type: application/json
 Body: [strategic_alert JSON]
 ```
+
+---
+
+## 14. Human-in-the-Loop & Audit Layer
+
+Die bestehende modulare Agenten-Architektur bleibt unverändert. Ergänzt wird eine
+zusätzliche **Review- und Audit-Schicht** zwischen Validierung und Szenario-Integration.
+
+### 14.1 Position im bestehenden Prozess
+
+```
+Schedule Trigger
+    ↓
+Coordinator
+    ↓
+run_scanning_agent
+    ↓
+run_assessment_agent
+    ↓
+run_energy_expert_agent
+    ↓
+HITL Gate (Regelprüfung)
+    ├─ false: direkt weiter zu run_scenario_agent
+    └─ true: Übergabe an Review UI (Intake)
+              ↓
+            Human Entscheidung (approve/correct/reject)
+              ↓
+            Callback an n8n
+              ├─ approve/correct: run_scenario_agent
+              └─ reject: Prozess stoppen + Report
+```
+
+### 14.2 HITL-Eskalationsregeln (empfohlen)
+
+Ein Fall geht verpflichtend in den Human-Review, wenn mindestens eine Regel erfüllt ist:
+
+- `confidence < 0.70`
+- `uncertainty = high`
+- Quellenkonflikt erkannt (`source_conflict = true`)
+- `systemischer_impakt = HOCH`
+
+### 14.3 Standardisiertes Evidence-Objekt
+
+Jeder entscheidungsrelevante Schritt erzeugt ein prüfbares Objekt:
+
+```json
+{
+  "caseId": "case_2026_06_10_001",
+  "runId": "run_2026_06_10",
+  "stepId": "energy_validation",
+  "agentName": "Energy Expert Agent",
+  "callbackUrl": "http://localhost:5678/webhook/review-decision-callback",
+  "payload": {
+    "input_hash": "...",
+    "output_hash": "..."
+  },
+  "decision": {
+    "signal": true,
+    "ansoff_level": 2,
+    "valide": true
+  },
+  "reasoningFields": {
+    "claim": "Signal deutet auf strukturellen Kostenshift hin",
+    "evidence": ["https://..."],
+    "counterpoints": ["Pilotdaten evtl. nicht uebertragbar"],
+    "uncertainty": "medium",
+    "confidence": 0.74,
+    "policy_checks": {
+      "source_quality_passed": true,
+      "mainstream_check_passed": true
+    }
+  },
+  "sources": [
+    {
+      "title": "Quelle 1",
+      "url": "https://...",
+      "trustScore": 0.82
+    }
+  ]
+}
+```
+
+### 14.4 Audit Logging
+
+Folgende Felder werden je Schritt persistiert:
+
+- `run_id`, `case_id`, `step_id`, `agent_name`, `timestamp`
+- `input_hash`, `output_hash`, `review_status`, `reviewer`
+- `review_comment`, `decision_diff`
+
+Damit sind Entscheidungen reproduzierbar, diffbar und für Nachweise auswertbar.
+
+---
+
+## 15. Dedizierte Review UI (Next.js)
+
+Für die Human-in-the-Loop-Freigabe wird eine dedizierte Oberfläche bereitgestellt:
+
+- Pfad im Repository: `ui/review-console`
+- Zweck: Review Queue, Detailansicht, Approve/Correct/Reject, Audit Trail
+- Integration via API mit n8n
+
+### 15.1 API-Vertrag
+
+**n8n -> UI**
+
+- `POST /api/n8n/intake`
+  - Legt einen Review-Fall mit Evidence-Objekt an
+
+**UI -> n8n**
+
+- `POST /api/review/decision`
+  - Speichert Human-Entscheidung
+  - Sendet optional Callback an n8n (`callbackUrl` oder Default-URL)
+
+### 15.2 n8n-Node-Empfehlung im Coordinator-Flow
+
+Nach `run_energy_expert_agent`:
+
+1. `Set` Node: Evidence-Objekt bauen
+2. `IF` Node: HITL-Regelprüfung
+3. Bei HITL=true: `HTTP Request` an Review UI Intake
+4. `Wait for Webhook`: auf Review Callback warten
+5. `IF reviewStatus`: approve/correct/reject verzweigen
+
+### 15.3 KPI für Qualität und Governance
+
+- Correction Rate pro Agent
+- False-Positive-Rate im Weak-Signal-Filter
+- Time-to-Decision im HITL
+- Agreement Rate zwischen Agent und Human
 
 ---
 
