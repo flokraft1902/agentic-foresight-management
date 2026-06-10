@@ -1,0 +1,24 @@
+[
+  {
+    "id": "audit_515300af-85db-4984-8a1e-312e3a2176c8",
+    "at": "2026-06-10T18:39:22.297Z",
+    "caseId": "test_001",
+    "action": "intake"
+  },
+  {
+    "id": "audit_196bc0c0-8f53-4037-9b07-d3be26142a19",
+    "at": "2026-06-10T18:40:23.284Z",
+    "caseId": "test_001",
+    "action": "approve",
+    "reviewer": "human.reviewer",
+    "comment": "Top"
+  },
+  {
+    "id": "audit_bb00838e-daf6-46c4-9889-61d2a48c1c2f",
+    "at": "2026-06-10T18:40:30.079Z",
+    "caseId": "test_001",
+    "action": "approve",
+    "reviewer": "human.reviewer",
+    "comment": ""
+  }
+]
