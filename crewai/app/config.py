@@ -4,8 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    gemini_api_key: str | None = None
-    gemini_model: str = "gemini/gemini-2.0-flash"
+    llm_api_key: str | None = None
+    llm_model: str = "openrouter/nex-agi/nex-n2-pro:free"
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     data_dir: str = "./data"

@@ -20,8 +20,47 @@ class CrewSummary:
     text: str
 
 
+@dataclass
+class LLMProbe:
+    ok: bool
+    status: str
+    detail: str
+
+
+def probe_llm() -> LLMProbe:
+    if not settings.llm_api_key:
+        return LLMProbe(ok=False, status="no_api_key", detail="LLM_API_KEY is not set in .env.")
+    if LLM is None:
+        return LLMProbe(
+            ok=False,
+            status="crewai_missing",
+            detail="CrewAI runtime is not installed; cannot reach the LLM.",
+        )
+
+    try:
+        from litellm import completion  # type: ignore
+    except Exception as exc:
+        return LLMProbe(ok=False, status="litellm_missing", detail=f"litellm import failed: {exc}")
+
+    try:
+        response = completion(
+            model=settings.llm_model,
+            api_key=settings.llm_api_key,
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=5,
+        )
+        text = ""
+        try:
+            text = response.choices[0].message.content or ""
+        except Exception:
+            text = str(response)[:120]
+        return LLMProbe(ok=True, status="live", detail=f"LLM reachable. Reply: {text.strip()[:120]}")
+    except Exception as exc:
+        return LLMProbe(ok=False, status="probe_failed", detail=str(exc)[:400])
+
+
 def summarize_stage(stage_name: str, objective: str, payload: dict) -> CrewSummary:
-    has_llm_config = bool(settings.gemini_api_key and settings.gemini_model)
+    has_llm_config = bool(settings.llm_api_key and settings.llm_model)
     has_crewai = all(item is not None for item in [Agent, Crew, Process, Task])
 
     if not (has_llm_config and has_crewai):
@@ -29,11 +68,11 @@ def summarize_stage(stage_name: str, objective: str, payload: dict) -> CrewSumma
             used_crewai=False,
             text=(
                 f"Fallback mode for stage '{stage_name}'. "
-                "CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+                "CrewAI summary skipped because LLM_API_KEY or CrewAI runtime is not available."
             ),
         )
 
-    llm = LLM(model=settings.gemini_model, api_key=settings.gemini_api_key) if LLM else None
+    llm = LLM(model=settings.llm_model, api_key=settings.llm_api_key) if LLM else None
     agent_kwargs = {"llm": llm} if llm else {}
 
     analyst = Agent(

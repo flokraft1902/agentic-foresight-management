@@ -5,6 +5,8 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
+from app.crew_layer import probe_llm
 from app.data_store import (
     get_case,
     get_run,
@@ -30,6 +32,19 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict:
     return {"ok": True, "service": "crewai-foresight-backend", "at": datetime.utcnow().isoformat() + "Z"}
+
+
+@app.get("/llm/health")
+def llm_health() -> dict:
+    probe = probe_llm()
+    return {
+        "ok": probe.ok,
+        "status": probe.status,
+        "model": settings.llm_model,
+        "api_key_present": bool(settings.llm_api_key),
+        "detail": probe.detail,
+        "at": datetime.utcnow().isoformat() + "Z",
+    }
 
 
 @app.get("/config/search-terms")

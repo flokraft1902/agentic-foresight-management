@@ -10,6 +10,15 @@ interface CaseEditState {
   corrected_rationale: string;
 }
 
+interface LlmHealth {
+  ok: boolean;
+  status: string;
+  model?: string;
+  api_key_present?: boolean;
+  detail?: string;
+  at?: string;
+}
+
 function statusBadgeClass(status: string): string {
   if (status === "done" || status === "completed" || status === "validated") return "badge ok";
   if (status === "running" || status === "pending") return "badge warn";
@@ -26,10 +35,42 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>("");
   const [caseEdits, setCaseEdits] = useState<Record<string, CaseEditState>>({});
+  const [llmHealth, setLlmHealth] = useState<LlmHealth | null>(null);
+  const [llmChecking, setLlmChecking] = useState(false);
 
   useEffect(() => {
     void loadTerms();
+    void checkLlmHealth();
   }, []);
+
+  async function checkLlmHealth(): Promise<void> {
+    setLlmChecking(true);
+    try {
+      const response = await fetch("/api/llm-health", { cache: "no-store" });
+      const data = (await response.json()) as LlmHealth;
+      setLlmHealth(data);
+    } catch (error) {
+      setLlmHealth({
+        ok: false,
+        status: "request_failed",
+        detail: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setLlmChecking(false);
+    }
+  }
+
+  function llmBadgeClass(): string {
+    if (!llmHealth) return "badge warn";
+    return llmHealth.ok ? "badge ok" : "badge bad";
+  }
+
+  function llmBadgeLabel(): string {
+    if (llmChecking) return "pruefe...";
+    if (!llmHealth) return "unbekannt";
+    if (llmHealth.ok) return "LLM live";
+    return `Fallback (${llmHealth.status})`;
+  }
 
   async function loadTerms(): Promise<void> {
     const response = await fetch("/api/config/search-terms", { cache: "no-store" });
@@ -75,6 +116,7 @@ export default function HomePage() {
       setRun(data.run);
       setCases(data.cases || []);
       setMessage(`Workflow abgeschlossen. Run-ID: ${data.run.run_id}`);
+      void checkLlmHealth();
     } finally {
       setLoading(false);
     }
@@ -145,11 +187,45 @@ export default function HomePage() {
   return (
     <main className="grid" style={{ gap: "1rem", paddingTop: "1.2rem", paddingBottom: "3rem" }}>
       <section className="card fade-up">
-        <h1 style={{ marginTop: 0, marginBottom: "0.5rem" }}>Foresight Workflow Console</h1>
-        <p className="meta" style={{ marginTop: 0 }}>
-          End-to-end Steuerung fuer das CrewAI Multi-Agenten-System mit transparenter Prozessansicht,
-          aenderbaren Suchbegriffen, Human-Review von Signal/Noise und Quellennachweisen.
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div>
+            <h1 style={{ marginTop: 0, marginBottom: "0.5rem" }}>Foresight Workflow Console</h1>
+            <p className="meta" style={{ marginTop: 0 }}>
+              End-to-end Steuerung fuer das CrewAI Multi-Agenten-System mit transparenter Prozessansicht,
+              aenderbaren Suchbegriffen, Human-Review von Signal/Noise und Quellennachweisen.
+            </p>
+          </div>
+          <div
+            className="card"
+            style={{ minWidth: "240px", padding: "0.6rem 0.8rem" }}
+            title={llmHealth?.detail || ""}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", justifyContent: "space-between" }}>
+              <strong>LLM Status</strong>
+              <span className={llmBadgeClass()}>{llmBadgeLabel()}</span>
+            </div>
+            <div className="meta" style={{ marginTop: "0.3rem" }}>
+              Model: {llmHealth?.model || "-"}
+            </div>
+            <div className="meta">
+              API Key: {llmHealth?.api_key_present ? "gesetzt" : "fehlt"}
+            </div>
+            {llmHealth?.detail ? (
+              <div className="meta" style={{ marginTop: "0.3rem", wordBreak: "break-word" }}>
+                {llmHealth.detail.length > 140 ? `${llmHealth.detail.slice(0, 140)}...` : llmHealth.detail}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="secondary"
+              style={{ marginTop: "0.5rem", width: "100%" }}
+              onClick={() => void checkLlmHealth()}
+              disabled={llmChecking}
+            >
+              {llmChecking ? "pruefe..." : "Erneut pruefen"}
+            </button>
+          </div>
+        </div>
         {message ? <p className="meta" style={{ marginBottom: 0 }}>{message}</p> : null}
       </section>
 
@@ -221,18 +297,30 @@ export default function HomePage() {
           <p className="meta">Nach dem Start werden hier alle Schritte mit Details angezeigt.</p>
         ) : (
           <div className="timeline">
-            {run.steps.map((step) => (
-              <article key={step.name} className={`step ${step.status}`}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-                  <strong>{step.name}</strong>
-                  <span className={statusBadgeClass(step.status)}>{step.status}</span>
-                </div>
-                <p className="meta" style={{ marginBottom: "0.3rem" }}>
-                  Start: {step.started_at ? new Date(step.started_at).toLocaleString("de-DE") : "-"} | Ende: {step.finished_at ? new Date(step.finished_at).toLocaleString("de-DE") : "-"}
-                </p>
-                <pre style={{ margin: 0 }}>{JSON.stringify(step.detail, null, 2)}</pre>
-              </article>
-            ))}
+            {run.steps.map((step) => {
+              const crewInfo = (step.detail as { crewai?: { enabled?: boolean } }).crewai;
+              const usedCrewai = crewInfo?.enabled === true;
+              return (
+                <article key={step.name} className={`step ${step.status}`}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+                    <strong>{step.name}</strong>
+                    <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                      <span
+                        className={crewInfo === undefined ? "badge warn" : usedCrewai ? "badge ok" : "badge bad"}
+                        title={usedCrewai ? "LLM wurde fuer diesen Schritt aufgerufen" : "Fallback-Heuristik, kein LLM-Call"}
+                      >
+                        {crewInfo === undefined ? "LLM: n/a" : usedCrewai ? "LLM live" : "LLM fallback"}
+                      </span>
+                      <span className={statusBadgeClass(step.status)}>{step.status}</span>
+                    </div>
+                  </div>
+                  <p className="meta" style={{ marginBottom: "0.3rem" }}>
+                    Start: {step.started_at ? new Date(step.started_at).toLocaleString("de-DE") : "-"} | Ende: {step.finished_at ? new Date(step.finished_at).toLocaleString("de-DE") : "-"}
+                  </p>
+                  <pre style={{ margin: 0 }}>{JSON.stringify(step.detail, null, 2)}</pre>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>

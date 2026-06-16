@@ -1,15 +1,6 @@
 {
   "search_terms": [
-    "hydrogen import germany",
-    "energy storage solid state battery",
-    "electricity market reform eu",
-    "capacity market germany",
-    "grid congestion europe",
-    "co2 certificate price trend",
-    "vehicle to grid pilot",
-    "industrial demand response",
-    "renewable curtailment",
-    "offshore wind supply chain"
+    "hybrogen import germany"
   ],
   "runs": [
     {
@@ -306,6 +297,1446 @@
         "noise": 10,
         "validated_signals": 3,
         "strategic_alerts": 3
+      }
+    },
+    {
+      "run_id": "run_20260616_130626_601a47",
+      "created_at": "2026-06-16T13:06:26.123230Z",
+      "updated_at": "2026-06-16T13:06:26.131230Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "asdasd"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:26.125049Z",
+          "finished_at": "2026-06-16T13:06:26.126126Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Asdasd update 1",
+                "url": "https://www.iea.org/news/asdasd-1",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.62
+              },
+              {
+                "title": "Asdasd update 2",
+                "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:26.126955Z",
+          "finished_at": "2026-06-16T13:06:26.127706Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:26.128406Z",
+          "finished_at": "2026-06-16T13:06:26.129106Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:26.130521Z",
+          "finished_at": "2026-06-16T13:06:26.131219Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_130630_d88b7f",
+      "created_at": "2026-06-16T13:06:30.119885Z",
+      "updated_at": "2026-06-16T13:06:30.133875Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "asdasd"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:30.122525Z",
+          "finished_at": "2026-06-16T13:06:30.124919Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Asdasd update 1",
+                "url": "https://www.iea.org/news/asdasd-1",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.62
+              },
+              {
+                "title": "Asdasd update 2",
+                "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:30.126643Z",
+          "finished_at": "2026-06-16T13:06:30.128172Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:30.129324Z",
+          "finished_at": "2026-06-16T13:06:30.130438Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:30.132702Z",
+          "finished_at": "2026-06-16T13:06:30.133865Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_130630_cad35a",
+      "created_at": "2026-06-16T13:06:30.755184Z",
+      "updated_at": "2026-06-16T13:06:30.769911Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "asdasd"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:30.758046Z",
+          "finished_at": "2026-06-16T13:06:30.760224Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Asdasd update 1",
+                "url": "https://www.iea.org/news/asdasd-1",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.62
+              },
+              {
+                "title": "Asdasd update 2",
+                "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:30.762025Z",
+          "finished_at": "2026-06-16T13:06:30.763688Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:30.765011Z",
+          "finished_at": "2026-06-16T13:06:30.766235Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:30.768648Z",
+          "finished_at": "2026-06-16T13:06:30.769901Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_130631_f6e46d",
+      "created_at": "2026-06-16T13:06:31.600356Z",
+      "updated_at": "2026-06-16T13:06:31.615540Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "asdasd"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:31.602898Z",
+          "finished_at": "2026-06-16T13:06:31.604708Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Asdasd update 1",
+                "url": "https://www.iea.org/news/asdasd-1",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.62
+              },
+              {
+                "title": "Asdasd update 2",
+                "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:31.606340Z",
+          "finished_at": "2026-06-16T13:06:31.608411Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:31.609961Z",
+          "finished_at": "2026-06-16T13:06:31.611318Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:31.614338Z",
+          "finished_at": "2026-06-16T13:06:31.615530Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_130632_63ff76",
+      "created_at": "2026-06-16T13:06:32.384587Z",
+      "updated_at": "2026-06-16T13:06:32.397214Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "asdasd"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:32.386392Z",
+          "finished_at": "2026-06-16T13:06:32.388107Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Asdasd update 1",
+                "url": "https://www.iea.org/news/asdasd-1",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.62
+              },
+              {
+                "title": "Asdasd update 2",
+                "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:32.389491Z",
+          "finished_at": "2026-06-16T13:06:32.390948Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:32.392376Z",
+          "finished_at": "2026-06-16T13:06:32.393537Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:32.395939Z",
+          "finished_at": "2026-06-16T13:06:32.397204Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_130633_7ea0db",
+      "created_at": "2026-06-16T13:06:33.189740Z",
+      "updated_at": "2026-06-16T13:06:33.204962Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "asdasd"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:33.192538Z",
+          "finished_at": "2026-06-16T13:06:33.194872Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Asdasd update 1",
+                "url": "https://www.iea.org/news/asdasd-1",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.62
+              },
+              {
+                "title": "Asdasd update 2",
+                "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+                "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:33.196639Z",
+          "finished_at": "2026-06-16T13:06:33.198261Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:33.199796Z",
+          "finished_at": "2026-06-16T13:06:33.201233Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:06:33.203714Z",
+          "finished_at": "2026-06-16T13:06:33.204953Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_130700_6f37f8",
+      "created_at": "2026-06-16T13:07:00.274015Z",
+      "updated_at": "2026-06-16T13:07:00.290290Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "battery",
+        "energy"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:07:00.277383Z",
+          "finished_at": "2026-06-16T13:07:00.279605Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 4,
+            "sample_sources": [
+              {
+                "title": "Battery update 1",
+                "url": "https://www.iea.org/news/battery-1",
+                "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.92
+              },
+              {
+                "title": "Battery update 2",
+                "url": "https://energy.ec.europa.eu/news_en/battery-2",
+                "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.92
+              },
+              {
+                "title": "Energy update 1",
+                "url": "https://energy.ec.europa.eu/news_en/energy-1",
+                "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.77
+              },
+              {
+                "title": "Energy update 2",
+                "url": "https://www.cleanenergywire.org/news/energy-2",
+                "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-14",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:07:00.281388Z",
+          "finished_at": "2026-06-16T13:07:00.283085Z",
+          "detail": {
+            "candidate_count": 4,
+            "signal_count": 0,
+            "noise_count": 4,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:07:00.284633Z",
+          "finished_at": "2026-06-16T13:07:00.286220Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 4,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:07:00.288911Z",
+          "finished_at": "2026-06-16T13:07:00.290281Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 4,
+        "signals": 0,
+        "noise": 4,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_131038_c5798c",
+      "created_at": "2026-06-16T13:10:38.720618Z",
+      "updated_at": "2026-06-16T13:10:38.735594Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "battery",
+        "energy"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:10:38.725725Z",
+          "finished_at": "2026-06-16T13:10:38.727417Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 4,
+            "sample_sources": [
+              {
+                "title": "Battery update 1",
+                "url": "https://www.iea.org/news/battery-1",
+                "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.92
+              },
+              {
+                "title": "Battery update 2",
+                "url": "https://energy.ec.europa.eu/news_en/battery-2",
+                "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.92
+              },
+              {
+                "title": "Energy update 1",
+                "url": "https://energy.ec.europa.eu/news_en/energy-1",
+                "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.77
+              },
+              {
+                "title": "Energy update 2",
+                "url": "https://www.cleanenergywire.org/news/energy-2",
+                "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-14",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:10:38.728627Z",
+          "finished_at": "2026-06-16T13:10:38.729931Z",
+          "detail": {
+            "candidate_count": 4,
+            "signal_count": 0,
+            "noise_count": 4,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:10:38.730999Z",
+          "finished_at": "2026-06-16T13:10:38.732102Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 4,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:10:38.734437Z",
+          "finished_at": "2026-06-16T13:10:38.735587Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 4,
+        "signals": 0,
+        "noise": 4,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_131039_a6e4d7",
+      "created_at": "2026-06-16T13:10:39.894421Z",
+      "updated_at": "2026-06-16T13:10:39.902075Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "battery",
+        "energy"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:10:39.895429Z",
+          "finished_at": "2026-06-16T13:10:39.896289Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 4,
+            "sample_sources": [
+              {
+                "title": "Battery update 1",
+                "url": "https://www.iea.org/news/battery-1",
+                "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.92
+              },
+              {
+                "title": "Battery update 2",
+                "url": "https://energy.ec.europa.eu/news_en/battery-2",
+                "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.92
+              },
+              {
+                "title": "Energy update 1",
+                "url": "https://energy.ec.europa.eu/news_en/energy-1",
+                "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.77
+              },
+              {
+                "title": "Energy update 2",
+                "url": "https://www.cleanenergywire.org/news/energy-2",
+                "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-14",
+                "trust_score": 0.86
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:10:39.897083Z",
+          "finished_at": "2026-06-16T13:10:39.897909Z",
+          "detail": {
+            "candidate_count": 4,
+            "signal_count": 0,
+            "noise_count": 4,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:10:39.898836Z",
+          "finished_at": "2026-06-16T13:10:39.899593Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 4,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:10:39.901197Z",
+          "finished_at": "2026-06-16T13:10:39.902070Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 4,
+        "signals": 0,
+        "noise": 4,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_131100_50e0c3",
+      "created_at": "2026-06-16T13:11:00.096392Z",
+      "updated_at": "2026-06-16T13:11:00.109499Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "hybrogen import germany"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:11:00.098289Z",
+          "finished_at": "2026-06-16T13:11:00.100368Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Hybrogen Import Germany update 1",
+                "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.46
+              },
+              {
+                "title": "Hybrogen Import Germany update 2",
+                "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.82
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:11:00.101802Z",
+          "finished_at": "2026-06-16T13:11:00.103201Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:11:00.104559Z",
+          "finished_at": "2026-06-16T13:11:00.105834Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:11:00.108256Z",
+          "finished_at": "2026-06-16T13:11:00.109492Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_131324_385a22",
+      "created_at": "2026-06-16T13:13:24.482421Z",
+      "updated_at": "2026-06-16T13:13:24.500437Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "hybrogen import germany"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:13:24.485495Z",
+          "finished_at": "2026-06-16T13:13:24.487746Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Hybrogen Import Germany update 1",
+                "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.46
+              },
+              {
+                "title": "Hybrogen Import Germany update 2",
+                "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.82
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:13:24.489706Z",
+          "finished_at": "2026-06-16T13:13:24.491514Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:13:24.493318Z",
+          "finished_at": "2026-06-16T13:13:24.494949Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:13:24.498098Z",
+          "finished_at": "2026-06-16T13:13:24.500415Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_131657_ff8ba2",
+      "created_at": "2026-06-16T13:16:57.597821Z",
+      "updated_at": "2026-06-16T13:16:57.619110Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "hybrogen import germany"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:16:57.603444Z",
+          "finished_at": "2026-06-16T13:16:57.606199Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Hybrogen Import Germany update 1",
+                "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.46
+              },
+              {
+                "title": "Hybrogen Import Germany update 2",
+                "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.82
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:16:57.608240Z",
+          "finished_at": "2026-06-16T13:16:57.610658Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:16:57.612616Z",
+          "finished_at": "2026-06-16T13:16:57.614386Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:16:57.617590Z",
+          "finished_at": "2026-06-16T13:16:57.619102Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_132534_42e22b",
+      "created_at": "2026-06-16T13:25:34.711465Z",
+      "updated_at": "2026-06-16T13:25:34.721316Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "hybrogen import germany"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:25:34.713497Z",
+          "finished_at": "2026-06-16T13:25:34.714711Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Hybrogen Import Germany update 1",
+                "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.46
+              },
+              {
+                "title": "Hybrogen Import Germany update 2",
+                "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.82
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:25:34.715647Z",
+          "finished_at": "2026-06-16T13:25:34.716602Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:25:34.717501Z",
+          "finished_at": "2026-06-16T13:25:34.718536Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:25:34.720406Z",
+          "finished_at": "2026-06-16T13:25:34.721305Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because GEMINI_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_133253_f3f23d",
+      "created_at": "2026-06-16T13:32:53.638487Z",
+      "updated_at": "2026-06-16T13:32:53.650110Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "hybrogen import germany"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:32:53.640134Z",
+          "finished_at": "2026-06-16T13:32:53.641502Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Hybrogen Import Germany update 1",
+                "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.46
+              },
+              {
+                "title": "Hybrogen Import Germany update 2",
+                "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.82
+              }
+            ],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scanning Agent'. CrewAI summary skipped because LLM_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:32:53.642476Z",
+          "finished_at": "2026-06-16T13:32:53.644318Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Assessment Agent'. CrewAI summary skipped because LLM_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:32:53.645483Z",
+          "finished_at": "2026-06-16T13:32:53.647093Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Energy Expert Agent'. CrewAI summary skipped because LLM_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:32:53.649187Z",
+          "finished_at": "2026-06-16T13:32:53.650099Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": false,
+              "summary": "Fallback mode for stage 'Scenario Agent'. CrewAI summary skipped because LLM_API_KEY or CrewAI runtime is not available."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
+      }
+    },
+    {
+      "run_id": "run_20260616_134009_6e44ba",
+      "created_at": "2026-06-16T13:40:09.997890Z",
+      "updated_at": "2026-06-16T13:43:41.094965Z",
+      "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+      "search_terms": [
+        "hybrogen import germany"
+      ],
+      "status": "completed",
+      "steps": [
+        {
+          "name": "scanning",
+          "status": "done",
+          "started_at": "2026-06-16T13:40:10.001506Z",
+          "finished_at": "2026-06-16T13:40:17.705847Z",
+          "detail": {
+            "focus": "Weak signals in the energy economy with impact on policy, security, and sustainability.",
+            "hits": 2,
+            "sample_sources": [
+              {
+                "title": "Hybrogen Import Germany update 1",
+                "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-16",
+                "trust_score": 0.46
+              },
+              {
+                "title": "Hybrogen Import Germany update 2",
+                "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+                "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+                "published_at": "2026-06-15",
+                "trust_score": 0.82
+              }
+            ],
+            "crewai": {
+              "enabled": true,
+              "summary": "## Findings\n\n- The Scanning Agent identified **2 weak-signal candidates** related to the energy economy.\n- The scan focus is on signals with potential relevance to:\n  - **Policy**\n  - **Security**\n  - **Sustainability**\n- No item-level details, source names, dates, or descriptions of the two hits were included in the payload.\n\n## Uncertainty\n\n- The payload does not specify what the two weak-signal candidates are.\n- It is unclear whether the hits are:\n  - Emerging technologies\n  - Policy developments\n  - Security risks\n  - Market shifts\n  - Sustainability-related disruptions\n- Evidence strength, source credibility, geographic scope, and time horizon are not provided.\n\n## Reviewer Checkpoints\n\n- Retrieve or inspect the two underlying hits before drawing conclusions.\n- Classify each hit by energy-sector relevance: policy, security, sustainability, or cross-cutting.\n- Assess source credibility and recency.\n- Determine whether each signal represents a genuine emerging risk/opportunity or routine noise.\n- Identify possible implications for energy planning, infrastructure resilience, regulation, or decarbonization strategy.\n- Flag any signal requiring escalation for deeper analysis or expert review."
+            }
+          }
+        },
+        {
+          "name": "assessment",
+          "status": "done",
+          "started_at": "2026-06-16T13:40:17.715064Z",
+          "finished_at": "2026-06-16T13:41:58.905817Z",
+          "detail": {
+            "candidate_count": 2,
+            "signal_count": 0,
+            "noise_count": 2,
+            "crewai": {
+              "enabled": true,
+              "summary": "## Findings\n\n- Total candidates assessed: **2**\n- Classified as **signal**: **0**\n- Classified as **noise**: **2**\n- Current assessment indicates that none of the reviewed candidates met the threshold for meaningful signal relevance.\n- All candidates were filtered out as noise based on the applicable assessment criteria.\n\n## Uncertainty\n\n- The payload does not include individual candidate details, so the specific reasons for classifying each candidate as noise are not available.\n- It is unclear whether the noise classification reflects weak relevance, low credibility, duplication, insufficient evidence, or mismatch with the target foresight question.\n- No confidence scores, source metadata, or rationale are provided, limiting auditability.\n\n## Reviewer Checkpoints\n\n- Review the two candidates marked as noise to confirm the classification is appropriate.\n- Check whether any candidate contains partial signal that may have been prematurely discarded.\n- Verify whether the assessment criteria were applied consistently across both candidates.\n- If candidate details are available, inspect source quality, topical relevance, novelty, and evidence strength.\n- Consider re-running or escalating candidates if the filtering threshold may have been too strict."
+            }
+          }
+        },
+        {
+          "name": "energy_expert_validation",
+          "status": "done",
+          "started_at": "2026-06-16T13:41:58.932181Z",
+          "finished_at": "2026-06-16T13:42:18.913620Z",
+          "detail": {
+            "validated_count": 0,
+            "pending_review_count": 0,
+            "rejected_count": 2,
+            "crewai": {
+              "enabled": true,
+              "summary": "## Findings\n\n- **Validated items:** 0  \n- **Pending review items:** 0  \n- **Rejected items:** 2  \n- The current workflow stage has **no validated or pending items** and contains **two rejected items**.\n- From a strategic relevance perspective, there is **no confirmed evidence or validated signal** available from this stage.\n- The presence of rejected items indicates that the reviewed content did not meet the required criteria, but the specific reasons for rejection are not included in the payload.\n\n## Uncertainty\n\n- The rejection rationale for the two rejected items is **unknown**.\n- It is unclear whether the rejections were due to low strategic relevance, insufficient data quality, misalignment with the foresight scope, or validation rule failures.\n- Since there are no pending items, there is **no active review queue** visible in this payload.\n- Confidence in strategic relevance is **low** because the stage has produced no validated outputs.\n\n## Reviewer Checkpoints\n\n- Inspect the **two rejected items** to identify the specific rejection reasons.\n- Confirm whether the rejection criteria were applied consistently.\n- Determine whether any rejected items should be **reconsidered, corrected, or escalated**.\n- Validate whether the absence of pending and validated items reflects a completed review process or a possible data/pipeline issue.\n- Check whether upstream inputs are missing, incomplete, or insufficient for validation."
+            }
+          }
+        },
+        {
+          "name": "scenario_integration",
+          "status": "done",
+          "started_at": "2026-06-16T13:43:03.317846Z",
+          "finished_at": "2026-06-16T13:43:41.094794Z",
+          "detail": {
+            "alert_count": 0,
+            "alerts": [],
+            "crewai": {
+              "enabled": true,
+              "summary": "## Findings\n- The Scenario Agent payload contains no strategic alerts.\n- `alert_count` is `0`.\n- No validated weak signals were synthesized into actionable scenario-level warnings or alerts.\n\n## Uncertainty\n- It is unclear whether the absence of alerts means:\n  - no relevant weak signals were detected,\n  - no signals met the alerting threshold,\n  - upstream data was insufficient or absent,\n  - or the Scenario Agent stage did not produce output.\n\n## Reviewer Checkpoints\n- Confirm whether the input payload was complete and contained validated weak signals.\n- Check whether upstream detection and validation stages produced any signals.\n- Verify that Scenario Agent alert criteria and thresholds are functioning correctly.\n- If alerts were expected, rerun the stage or inspect logs for filtering, scoring, or synthesis failures."
+            }
+          }
+        }
+      ],
+      "summary": {
+        "cases_total": 2,
+        "signals": 0,
+        "noise": 2,
+        "validated_signals": 0,
+        "strategic_alerts": 0
       }
     }
   ],
@@ -1267,6 +2698,870 @@
           "snippet": "New development for 'offshore wind supply chain' with implications for supply security, cost, and decarbonization pathways in Europe.",
           "published_at": "2026-06-06",
           "trust_score": 0.79
+        }
+      ]
+    },
+    {
+      "case_id": "case_416aa6dde2",
+      "run_id": "run_20260616_130626_601a47",
+      "keyword": "asdasd",
+      "title": "Asdasd update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.54,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 1",
+          "url": "https://www.iea.org/news/asdasd-1",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.62
+        }
+      ]
+    },
+    {
+      "case_id": "case_02b94830f0",
+      "run_id": "run_20260616_130626_601a47",
+      "keyword": "asdasd",
+      "title": "Asdasd update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 2",
+          "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_615646c08c",
+      "run_id": "run_20260616_130630_d88b7f",
+      "keyword": "asdasd",
+      "title": "Asdasd update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.54,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 1",
+          "url": "https://www.iea.org/news/asdasd-1",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.62
+        }
+      ]
+    },
+    {
+      "case_id": "case_67c2abd17d",
+      "run_id": "run_20260616_130630_d88b7f",
+      "keyword": "asdasd",
+      "title": "Asdasd update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 2",
+          "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_17bc62e833",
+      "run_id": "run_20260616_130630_cad35a",
+      "keyword": "asdasd",
+      "title": "Asdasd update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.54,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 1",
+          "url": "https://www.iea.org/news/asdasd-1",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.62
+        }
+      ]
+    },
+    {
+      "case_id": "case_5d1cfb7830",
+      "run_id": "run_20260616_130630_cad35a",
+      "keyword": "asdasd",
+      "title": "Asdasd update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 2",
+          "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_8c27cb6c78",
+      "run_id": "run_20260616_130631_f6e46d",
+      "keyword": "asdasd",
+      "title": "Asdasd update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.54,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 1",
+          "url": "https://www.iea.org/news/asdasd-1",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.62
+        }
+      ]
+    },
+    {
+      "case_id": "case_d4befc17d3",
+      "run_id": "run_20260616_130631_f6e46d",
+      "keyword": "asdasd",
+      "title": "Asdasd update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 2",
+          "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_94ed7a1c1e",
+      "run_id": "run_20260616_130632_63ff76",
+      "keyword": "asdasd",
+      "title": "Asdasd update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.54,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 1",
+          "url": "https://www.iea.org/news/asdasd-1",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.62
+        }
+      ]
+    },
+    {
+      "case_id": "case_feaca27b5e",
+      "run_id": "run_20260616_130632_63ff76",
+      "keyword": "asdasd",
+      "title": "Asdasd update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 2",
+          "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_b8ccb4e9c8",
+      "run_id": "run_20260616_130633_7ea0db",
+      "keyword": "asdasd",
+      "title": "Asdasd update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.54,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 1",
+          "url": "https://www.iea.org/news/asdasd-1",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.62
+        }
+      ]
+    },
+    {
+      "case_id": "case_eb5aacb897",
+      "run_id": "run_20260616_130633_7ea0db",
+      "keyword": "asdasd",
+      "title": "Asdasd update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'asdasd'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Asdasd update 2",
+          "url": "https://energy.ec.europa.eu/news_en/asdasd-2",
+          "snippet": "New development for 'asdasd' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_94bf8600ec",
+      "run_id": "run_20260616_130700_6f37f8",
+      "keyword": "battery",
+      "title": "Battery update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'battery'.",
+      "confidence": 0.6,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Battery update 1",
+          "url": "https://www.iea.org/news/battery-1",
+          "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.92
+        }
+      ]
+    },
+    {
+      "case_id": "case_8665b3e60d",
+      "run_id": "run_20260616_130700_6f37f8",
+      "keyword": "battery",
+      "title": "Battery update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'battery'.",
+      "confidence": 0.6,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Battery update 2",
+          "url": "https://energy.ec.europa.eu/news_en/battery-2",
+          "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.92
+        }
+      ]
+    },
+    {
+      "case_id": "case_7aa7e8eed3",
+      "run_id": "run_20260616_130700_6f37f8",
+      "keyword": "energy",
+      "title": "Energy update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'energy'.",
+      "confidence": 0.57,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Energy update 1",
+          "url": "https://energy.ec.europa.eu/news_en/energy-1",
+          "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.77
+        }
+      ]
+    },
+    {
+      "case_id": "case_3e3e8cffcd",
+      "run_id": "run_20260616_130700_6f37f8",
+      "keyword": "energy",
+      "title": "Energy update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'energy'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Energy update 2",
+          "url": "https://www.cleanenergywire.org/news/energy-2",
+          "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-14",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_dcfde45a52",
+      "run_id": "run_20260616_131038_c5798c",
+      "keyword": "battery",
+      "title": "Battery update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'battery'.",
+      "confidence": 0.6,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Battery update 1",
+          "url": "https://www.iea.org/news/battery-1",
+          "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.92
+        }
+      ]
+    },
+    {
+      "case_id": "case_7ad55a4709",
+      "run_id": "run_20260616_131038_c5798c",
+      "keyword": "battery",
+      "title": "Battery update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'battery'.",
+      "confidence": 0.6,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Battery update 2",
+          "url": "https://energy.ec.europa.eu/news_en/battery-2",
+          "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.92
+        }
+      ]
+    },
+    {
+      "case_id": "case_c7e3ba8313",
+      "run_id": "run_20260616_131038_c5798c",
+      "keyword": "energy",
+      "title": "Energy update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'energy'.",
+      "confidence": 0.57,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Energy update 1",
+          "url": "https://energy.ec.europa.eu/news_en/energy-1",
+          "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.77
+        }
+      ]
+    },
+    {
+      "case_id": "case_6142d3152d",
+      "run_id": "run_20260616_131038_c5798c",
+      "keyword": "energy",
+      "title": "Energy update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'energy'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Energy update 2",
+          "url": "https://www.cleanenergywire.org/news/energy-2",
+          "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-14",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_472565e795",
+      "run_id": "run_20260616_131039_a6e4d7",
+      "keyword": "battery",
+      "title": "Battery update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'battery'.",
+      "confidence": 0.6,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Battery update 1",
+          "url": "https://www.iea.org/news/battery-1",
+          "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.92
+        }
+      ]
+    },
+    {
+      "case_id": "case_4deeea901f",
+      "run_id": "run_20260616_131039_a6e4d7",
+      "keyword": "battery",
+      "title": "Battery update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'battery'.",
+      "confidence": 0.6,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Battery update 2",
+          "url": "https://energy.ec.europa.eu/news_en/battery-2",
+          "snippet": "New development for 'battery' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.92
+        }
+      ]
+    },
+    {
+      "case_id": "case_65291b5a93",
+      "run_id": "run_20260616_131039_a6e4d7",
+      "keyword": "energy",
+      "title": "Energy update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'energy'.",
+      "confidence": 0.57,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Energy update 1",
+          "url": "https://energy.ec.europa.eu/news_en/energy-1",
+          "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.77
+        }
+      ]
+    },
+    {
+      "case_id": "case_71929ccdc8",
+      "run_id": "run_20260616_131039_a6e4d7",
+      "keyword": "energy",
+      "title": "Energy update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'energy'.",
+      "confidence": 0.59,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Energy update 2",
+          "url": "https://www.cleanenergywire.org/news/energy-2",
+          "snippet": "New development for 'energy' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-14",
+          "trust_score": 0.86
+        }
+      ]
+    },
+    {
+      "case_id": "case_6fa01a85c1",
+      "run_id": "run_20260616_131100_50e0c3",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.51,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 1",
+          "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.46
+        }
+      ]
+    },
+    {
+      "case_id": "case_6223df8873",
+      "run_id": "run_20260616_131100_50e0c3",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.58,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 2",
+          "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.82
+        }
+      ]
+    },
+    {
+      "case_id": "case_8ed409d6d1",
+      "run_id": "run_20260616_131324_385a22",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.51,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 1",
+          "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.46
+        }
+      ]
+    },
+    {
+      "case_id": "case_7157ab03cf",
+      "run_id": "run_20260616_131324_385a22",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.58,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 2",
+          "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.82
+        }
+      ]
+    },
+    {
+      "case_id": "case_e1be5c416f",
+      "run_id": "run_20260616_131657_ff8ba2",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.51,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 1",
+          "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.46
+        }
+      ]
+    },
+    {
+      "case_id": "case_f74f5cc857",
+      "run_id": "run_20260616_131657_ff8ba2",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.58,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 2",
+          "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.82
+        }
+      ]
+    },
+    {
+      "case_id": "case_48d59c8048",
+      "run_id": "run_20260616_132534_42e22b",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.51,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 1",
+          "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.46
+        }
+      ]
+    },
+    {
+      "case_id": "case_fae648c810",
+      "run_id": "run_20260616_132534_42e22b",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.58,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 2",
+          "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.82
+        }
+      ]
+    },
+    {
+      "case_id": "case_728e418c07",
+      "run_id": "run_20260616_133253_f3f23d",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.51,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 1",
+          "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.46
+        }
+      ]
+    },
+    {
+      "case_id": "case_5fa6170d1f",
+      "run_id": "run_20260616_133253_f3f23d",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.58,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 2",
+          "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.82
+        }
+      ]
+    },
+    {
+      "case_id": "case_6282b2bf74",
+      "run_id": "run_20260616_134009_6e44ba",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 1",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.51,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 1",
+          "url": "https://www.iea.org/news/hybrogen-import-germany-1",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-16",
+          "trust_score": 0.46
+        }
+      ]
+    },
+    {
+      "case_id": "case_b601908cff",
+      "run_id": "run_20260616_134009_6e44ba",
+      "keyword": "hybrogen import germany",
+      "title": "Hybrogen Import Germany update 2",
+      "rationale": "Detected potential structural impact in policy, cost, or security dimensions for keyword 'hybrogen import germany'.",
+      "confidence": 0.58,
+      "is_signal": false,
+      "ansoff_level": 1,
+      "validation_status": "rejected",
+      "expert_comment": "Classified as noise due to weak structural impact evidence.",
+      "reviewer_comment": null,
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "sources": [
+        {
+          "title": "Hybrogen Import Germany update 2",
+          "url": "https://energy.ec.europa.eu/news_en/hybrogen-import-germany-2",
+          "snippet": "New development for 'hybrogen import germany' with implications for supply security, cost, and decarbonization pathways in Europe.",
+          "published_at": "2026-06-15",
+          "trust_score": 0.82
         }
       ]
     }

@@ -38,4 +38,5 @@ API docs: http://127.0.0.1:8000/docs
 ## Notes
 
 - If no API key is configured, the app still runs with deterministic fallback heuristics.
-- CrewAI summaries are injected into each workflow step when `GEMINI_API_KEY` and `GEMINI_MODEL` are configured.
+- CrewAI summaries are injected into each workflow step when `LLM_API_KEY` and `LLM_MODEL` are configured.
+- The default model is OpenRouter (`openrouter/nex-agi/nex-n2-pro:free`). Any LiteLLM-supported provider works by changing `LLM_MODEL` and using the matching API key.
