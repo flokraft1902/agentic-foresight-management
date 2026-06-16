@@ -20,5 +20,13 @@
     "action": "approve",
     "reviewer": "human.reviewer",
     "comment": ""
+  },
+  {
+    "id": "audit_c13eb11f-ca53-44fe-89e0-aa31cfc81aae",
+    "at": "2026-06-11T09:36:50.374Z",
+    "caseId": "test_001",
+    "action": "reject",
+    "reviewer": "human.reviewer",
+    "comment": ""
   }
 ]
