@@ -32,6 +32,30 @@ _HTTP_TIMEOUT = 8.0
 _USER_AGENT = "Mozilla/5.0 (compatible; ForesightAgent/1.0; +https://example.local)"
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _MAX_HITS_PER_TERM = 4
+_DDG_MAX_RESULTS = 8
+
+
+# Domains to search via DuckDuckGo as site-restricted queries.
+# Order matters only for trust-score lookup; the first matching domain wins.
+_DDG_SITES: list[tuple[str, str, float]] = [
+    # Government / regulators
+    ("BMWK", "bmwk.de", 0.92),
+    ("Bundesnetzagentur", "bundesnetzagentur.de", 0.92),
+    ("Bundestag", "bundestag.de", 0.90),
+    ("EC Energy", "energy.ec.europa.eu", 0.88),
+    # Think tanks / institutes
+    ("Agora Energiewende", "agora-energiewende.org", 0.88),
+    ("Fraunhofer ISE", "ise.fraunhofer.de", 0.88),
+    ("DENA", "dena.de", 0.85),
+    ("IEA", "iea.org", 0.90),
+    # Quality news
+    ("Tagesschau", "tagesschau.de", 0.82),
+    ("Handelsblatt", "handelsblatt.com", 0.78),
+    ("Heise", "heise.de", 0.78),
+    # Specialist trade press
+    ("PV Magazine DE", "pv-magazine.de", 0.75),
+    ("Energie & Management", "energie-und-management.de", 0.72),
+]
 
 
 def _strip_html(text: str) -> str:
@@ -97,6 +121,54 @@ def _entry_matches_term(entry: dict, term: str) -> bool:
     return all(token in haystack for token in tokens)
 
 
+def _identify_ddg_source(url: str) -> tuple[str, float]:
+    """Find which curated domain a DDG result belongs to and return name/trust."""
+    lower = (url or "").lower()
+    for name, domain, trust in _DDG_SITES:
+        if domain in lower:
+            return name, trust
+    return "DuckDuckGo", 0.65
+
+
+def _ddg_search_term(term: str) -> list[dict]:
+    """Site-restricted DuckDuckGo search across the curated _DDG_SITES list."""
+    try:
+        from ddgs import DDGS  # type: ignore
+    except Exception as exc:
+        print(f"[sources] ddgs import failed: {exc}")
+        return []
+
+    site_or = " OR ".join(f"site:{domain}" for _, domain, _ in _DDG_SITES)
+    query = f"{term} ({site_or})"
+
+    try:
+        raw_results = list(
+            DDGS().text(query, max_results=_DDG_MAX_RESULTS, region="de-de")
+        )
+    except Exception as exc:
+        print(f"[sources] DDG search failed for term='{term}': {exc}")
+        return []
+
+    entries: list[dict] = []
+    for r in raw_results:
+        url = r.get("href") or r.get("url") or ""
+        title = _strip_html(r.get("title", ""))
+        snippet = _strip_html(r.get("body", "") or r.get("snippet", ""))
+        if not (url and title):
+            continue
+        name, trust = _identify_ddg_source(url)
+        entries.append(
+            {
+                "title": title,
+                "summary": snippet,
+                "link": url,
+                "published": None,  # DDG does not reliably expose dates
+                "feed": Feed(name, "", trust),
+            }
+        )
+    return entries
+
+
 # --- Synthetic fallback (used when no live RSS data is available) ------------
 
 _FALLBACK_BASE_URLS = [
@@ -143,39 +215,56 @@ def _fallback_sources(search_terms: list[str]) -> list[dict]:
 
 
 def search_sources(search_terms: list[str]) -> list[dict]:
-    all_entries: list[dict] = []
+    # 1) RSS feeds (run once, filter per term)
+    rss_entries: list[dict] = []
     for feed in FEEDS:
-        all_entries.extend(_fetch_feed(feed))
+        rss_entries.extend(_fetch_feed(feed))
 
     items: list[dict] = []
-    if all_entries:
-        seen: set[tuple[str, str]] = set()
-        for term in search_terms:
-            matches = [entry for entry in all_entries if _entry_matches_term(entry, term)]
-            matches.sort(key=lambda e: e.get("published") or "", reverse=True)
+    seen: set[tuple[str, str]] = set()
+    rss_hit_counts: dict[str, int] = {}
+    ddg_hit_counts: dict[str, int] = {}
 
-            for entry in matches[:_MAX_HITS_PER_TERM]:
-                key = (term, entry["link"])
-                if key in seen:
-                    continue
-                seen.add(key)
+    for term in search_terms:
+        # RSS matches for this term
+        rss_matches = [entry for entry in rss_entries if _entry_matches_term(entry, term)]
+        rss_matches.sort(key=lambda e: e.get("published") or "", reverse=True)
 
-                snippet = entry["summary"][:480] or f"Article in {entry['feed'].name} mentioning '{term}'."
-                items.append(
-                    {
-                        "keyword": term,
-                        "source": SourceItem(
-                            title=entry["title"],
-                            url=entry["link"],
-                            snippet=snippet,
-                            published_at=entry["published"],
-                            trust_score=entry["feed"].trust_score,
-                        ),
-                    }
-                )
+        # 2) DuckDuckGo (per term) – gives us German + bot-blocked sources
+        ddg_matches = _ddg_search_term(term)
+
+        rss_hit_counts[term] = len(rss_matches)
+        ddg_hit_counts[term] = len(ddg_matches)
+
+        # Combine: RSS first (it has dates → ranked by recency); DDG appended.
+        combined = rss_matches + ddg_matches
+
+        for entry in combined[:_MAX_HITS_PER_TERM]:
+            key = (term, entry["link"])
+            if key in seen:
+                continue
+            seen.add(key)
+
+            snippet = entry["summary"][:480] or f"Article in {entry['feed'].name} mentioning '{term}'."
+            items.append(
+                {
+                    "keyword": term,
+                    "source": SourceItem(
+                        title=entry["title"],
+                        url=entry["link"],
+                        snippet=snippet,
+                        published_at=entry["published"],
+                        trust_score=entry["feed"].trust_score,
+                    ),
+                }
+            )
+
+    total_rss = sum(rss_hit_counts.values())
+    total_ddg = sum(ddg_hit_counts.values())
+    print(f"[sources] hits: RSS={total_rss} DDG={total_ddg} merged={len(items)}")
 
     if not items:
-        print("[sources] no live RSS hits — using synthetic fallback sources")
+        print("[sources] no live hits — using synthetic fallback sources")
         return _fallback_sources(search_terms)
 
     return items
