@@ -28,10 +28,25 @@ interface LlmHealth {
 
 function statusPillClass(status: string): string {
   if (status === "done" || status === "completed" || status === "validated") return "pill ok";
-  if (status === "running" || status === "pending") return "pill warn";
+  if (status === "running" || status === "pending" || status === "awaiting_review") return "pill warn";
   if (status === "failed" || status === "rejected") return "pill bad";
   return "pill neutral";
 }
+
+const PESTEL_LABEL: Record<string, string> = {
+  P: "Political",
+  E: "Economic",
+  S: "Social",
+  T: "Technological",
+  En: "Environmental",
+  L: "Legal",
+};
+
+const ZIELDREIECK_LABEL: Record<string, string> = {
+  wirtschaftlichkeit: "Wirtschaftlichkeit",
+  versorgungssicherheit: "Versorgungssicherheit",
+  umweltvertraeglichkeit: "Umweltverträglichkeit",
+};
 
 function formatTime(iso?: string): string {
   if (!iso) return "–";
@@ -58,18 +73,56 @@ function stepIsStreaming(step: WorkflowStep): boolean {
   return crewai?.streaming === true && step.status !== "done";
 }
 
-interface AssessmentProgress {
-  progress?: { classified: number; total: number };
-  llm_classified?: number;
-  heuristic_classified?: number;
-  signal_count?: number;
-  noise_count?: number;
+interface StepProgress {
+  label: string;            // e.g. "Klassifiziert" or "Validiert"
+  done: number;
+  total: number;
+  llm: number | null;
+  heuristic: number | null;
+  extras: { label: string; count: number; tone: "ok" | "warn" | "neutral" | "bad" }[];
 }
 
-function stepProgressInfo(step: WorkflowStep): AssessmentProgress | null {
-  const d = step.detail as AssessmentProgress;
-  if (!d || (!d.progress && d.llm_classified === undefined)) return null;
-  return d;
+function stepProgressInfo(step: WorkflowStep): StepProgress | null {
+  const d = step.detail as Record<string, unknown>;
+  if (!d) return null;
+  const prog = d.progress as { classified?: number; validated?: number; total?: number } | undefined;
+
+  // Assessment step
+  if (prog?.classified !== undefined || d.llm_classified !== undefined) {
+    const extras: StepProgress["extras"] = [];
+    if (typeof d.signal_count === "number") extras.push({ label: "Signale", count: d.signal_count, tone: "neutral" });
+    if (typeof d.noise_count === "number") extras.push({ label: "Noise", count: d.noise_count, tone: "neutral" });
+    return {
+      label: "Klassifiziert",
+      done: prog?.classified ?? 0,
+      total: prog?.total ?? 0,
+      llm: typeof d.llm_classified === "number" ? d.llm_classified : null,
+      heuristic: typeof d.heuristic_classified === "number" ? d.heuristic_classified : null,
+      extras,
+    };
+  }
+
+  // Expert validation step
+  if (prog?.validated !== undefined || d.llm_validated !== undefined) {
+    const extras: StepProgress["extras"] = [];
+    if (typeof d.validated_count === "number") extras.push({ label: "Validiert", count: d.validated_count, tone: "ok" });
+    if (typeof d.awaiting_review_count === "number" && d.awaiting_review_count > 0)
+      extras.push({ label: "Review nötig", count: d.awaiting_review_count, tone: "warn" });
+    if (typeof d.rejected_count === "number" && d.rejected_count > 0)
+      extras.push({ label: "Rejected", count: d.rejected_count, tone: "neutral" });
+    if (typeof d.domain_rejected === "number" && d.domain_rejected > 0)
+      extras.push({ label: "Domain-rejected", count: d.domain_rejected, tone: "bad" });
+    return {
+      label: "Validiert",
+      done: prog?.validated ?? 0,
+      total: prog?.total ?? 0,
+      llm: typeof d.llm_validated === "number" ? d.llm_validated : null,
+      heuristic: typeof d.heuristic_validated === "number" ? d.heuristic_validated : null,
+      extras,
+    };
+  }
+
+  return null;
 }
 
 export default function HomePage() {
@@ -85,6 +138,8 @@ export default function HomePage() {
   const [llmHealth, setLlmHealth] = useState<LlmHealth | null>(null);
   const [llmChecking, setLlmChecking] = useState(false);
   const [runList, setRunList] = useState<RunSummary[]>([]);
+  const [caseFilter, setCaseFilter] = useState<"all" | "awaiting_review" | "validated" | "rejected">("all");
+  const [caseSearch, setCaseSearch] = useState("");
 
   useEffect(() => {
     void loadTerms();
@@ -216,6 +271,23 @@ export default function HomePage() {
     }
   }
 
+  async function resumeWorkflow(): Promise<void> {
+    if (!run) return;
+    setMessage("Workflow wird fortgesetzt …");
+    try {
+      const response = await fetch(`/api/workflow/${run.run_id}/resume`, { method: "POST" });
+      const data = (await response.json()) as { ok?: boolean; detail?: string };
+      if (!response.ok || !data.ok) {
+        setMessage(data.detail || "Resume fehlgeschlagen.");
+        return;
+      }
+      setLoading(true);
+      await refreshRun();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Resume fehlgeschlagen.");
+    }
+  }
+
   async function refreshRun(): Promise<void> {
     if (!run) return;
     const response = await fetch(`/api/workflow/${run.run_id}`, { cache: "no-store" });
@@ -232,11 +304,20 @@ export default function HomePage() {
     if (!run || run.status !== "running") {
       if (loading && run && run.status !== "running") {
         setLoading(false);
-        setMessage(
-          run.status === "completed"
-            ? `Run ${run.run_id} abgeschlossen.`
-            : `Run ${run.run_id} ${run.status}.`,
-        );
+        if (run.status === "awaiting_review") {
+          const awaiting = Number(run.summary?.awaiting_review || 0);
+          setMessage(
+            awaiting > 0
+              ? `Workflow pausiert: ${awaiting} Cases warten auf Review.`
+              : "Workflow pausiert, wartet auf Review.",
+          );
+        } else {
+          setMessage(
+            run.status === "completed"
+              ? `Run ${run.run_id} abgeschlossen.`
+              : `Run ${run.run_id} ${run.status}.`,
+          );
+        }
         void checkLlmHealth();
         void loadRunList();
       }
@@ -308,6 +389,42 @@ export default function HomePage() {
   }
 
   const summary = useMemo(() => run?.summary || {}, [run]);
+
+  const caseCounts = useMemo(() => {
+    const c = { all: cases.length, awaiting_review: 0, validated: 0, rejected: 0 };
+    for (const item of cases) {
+      if (item.validation_status === "awaiting_review") c.awaiting_review += 1;
+      else if (item.validation_status === "validated") c.validated += 1;
+      else if (item.validation_status === "rejected") c.rejected += 1;
+    }
+    return c;
+  }, [cases]);
+
+  const filteredCases = useMemo(() => {
+    const search = caseSearch.trim().toLowerCase();
+    const matchesStatus = (item: SignalCase) =>
+      caseFilter === "all" || item.validation_status === caseFilter;
+    const matchesSearch = (item: SignalCase) => {
+      if (!search) return true;
+      const haystack = `${item.title} ${item.rationale} ${item.keyword} ${item.expert_comment || ""}`.toLowerCase();
+      return haystack.includes(search);
+    };
+
+    const priority = (status: string) => {
+      if (status === "awaiting_review") return 0;
+      if (status === "pending") return 1;
+      if (status === "validated") return 2;
+      return 3; // rejected
+    };
+
+    return cases
+      .filter((item) => matchesStatus(item) && matchesSearch(item))
+      .sort((a, b) => {
+        const p = priority(a.validation_status) - priority(b.validation_status);
+        if (p !== 0) return p;
+        return b.confidence - a.confidence;
+      });
+  }, [cases, caseFilter, caseSearch]);
   const llmPillClass = !llmHealth ? "pill neutral" : llmHealth.ok ? "pill ok" : "pill bad";
   const llmPillLabel = llmChecking
     ? "prüft …"
@@ -436,6 +553,34 @@ export default function HomePage() {
           </article>
         </section>
 
+        {/* HITL Banner */}
+        {run && run.status === "awaiting_review" ? (() => {
+          const stillAwaiting = cases.filter((c) => c.validation_status === "awaiting_review").length;
+          return (
+            <section className="surface hitl-banner">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                <div>
+                  <strong style={{ fontSize: "1rem" }}>Workflow pausiert für Human Review</strong>
+                  <div className="meta" style={{ marginTop: "0.3rem" }}>
+                    {stillAwaiting > 0
+                      ? `${stillAwaiting} Cases warten auf deine Entscheidung. Approve oder reject jeden Case unten, dann fortfahren.`
+                      : "Alle Cases entschieden — du kannst den Scenario-Step jetzt starten."}
+                  </div>
+                </div>
+                <button
+                  className="primary"
+                  type="button"
+                  onClick={() => void resumeWorkflow()}
+                  disabled={stillAwaiting > 0}
+                  title={stillAwaiting > 0 ? "Erst alle pending Cases reviewen" : "Scenario-Step starten"}
+                >
+                  Workflow fortsetzen
+                </button>
+              </div>
+            </section>
+          );
+        })() : null}
+
         {/* Run History */}
         <section className="surface">
           <div className="surface-header">
@@ -522,8 +667,8 @@ export default function HomePage() {
                 const summaryText = stepCrewSummary(step);
                 const progress = stepProgressInfo(step);
                 const isStreaming = stepIsStreaming(step);
-                const pct = progress?.progress && progress.progress.total > 0
-                  ? Math.round((progress.progress.classified / progress.progress.total) * 100)
+                const pct = progress && progress.total > 0
+                  ? Math.round((progress.done / progress.total) * 100)
                   : null;
                 return (
                   <div key={step.name} className={`step ${step.status}`}>
@@ -550,31 +695,30 @@ export default function HomePage() {
 
                     {progress ? (
                       <div style={{ marginTop: "0.55rem" }}>
-                        {progress.progress ? (
+                        {progress.total > 0 ? (
                           <div>
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--ink-soft)" }}>
-                              <span>Klassifiziert</span>
-                              <span>{progress.progress.classified} / {progress.progress.total}{pct !== null ? ` · ${pct}%` : ""}</span>
+                              <span>{progress.label}</span>
+                              <span>{progress.done} / {progress.total}{pct !== null ? ` · ${pct}%` : ""}</span>
                             </div>
                             <div style={{ height: 4, background: "var(--surface-muted)", borderRadius: 999, overflow: "hidden", marginTop: 4 }}>
                               <div style={{ height: "100%", width: `${pct ?? 0}%`, background: "var(--accent)", transition: "width 300ms ease" }} />
                             </div>
                           </div>
                         ) : null}
-                        {(progress.llm_classified !== undefined || progress.heuristic_classified !== undefined) ? (
+                        {(progress.llm !== null || progress.heuristic !== null || progress.extras.length > 0) ? (
                           <div style={{ marginTop: "0.4rem", display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-                            {progress.llm_classified !== undefined ? (
-                              <span className="pill ok" title="durch LLM klassifiziert">LLM · {progress.llm_classified}</span>
+                            {progress.llm !== null ? (
+                              <span className="pill ok" title="durch LLM verarbeitet">LLM · {progress.llm}</span>
                             ) : null}
-                            {progress.heuristic_classified !== undefined && progress.heuristic_classified > 0 ? (
-                              <span className="pill warn" title="Heuristik-Fallback verwendet">Heuristik · {progress.heuristic_classified}</span>
+                            {progress.heuristic !== null && progress.heuristic > 0 ? (
+                              <span className="pill warn" title="Heuristik-Fallback verwendet">Heuristik · {progress.heuristic}</span>
                             ) : null}
-                            {progress.signal_count !== undefined ? (
-                              <span className="pill neutral">Signale · {progress.signal_count}</span>
-                            ) : null}
-                            {progress.noise_count !== undefined ? (
-                              <span className="pill neutral">Noise · {progress.noise_count}</span>
-                            ) : null}
+                            {progress.extras.map((extra) => (
+                              <span key={extra.label} className={`pill ${extra.tone}`}>
+                                {extra.label} · {extra.count}
+                              </span>
+                            ))}
                           </div>
                         ) : null}
                       </div>
@@ -600,17 +744,58 @@ export default function HomePage() {
         <section className="surface">
           <div className="surface-header">
             <h2>Signal / Noise Review</h2>
-            <span className="meta">{cases.length} Cases</span>
+            <span className="meta">
+              {filteredCases.length === cases.length
+                ? `${cases.length} Cases`
+                : `${filteredCases.length} von ${cases.length} Cases`}
+            </span>
           </div>
 
           {cases.length === 0 ? (
             <div className="empty">Noch keine Cases vorhanden.</div>
           ) : (
-            <div className="case-grid">
-              {cases.map((item) => {
-                const edit = editForCase(item);
-                return (
-                  <article key={item.case_id} className="case">
+            <>
+              <div className="case-filter-bar">
+                <div className="case-filter-chips">
+                  {([
+                    { id: "all", label: "Alle", count: caseCounts.all, accent: "neutral" as const },
+                    { id: "awaiting_review", label: "Review nötig", count: caseCounts.awaiting_review, accent: "warn" as const },
+                    { id: "validated", label: "Validiert", count: caseCounts.validated, accent: "ok" as const },
+                    { id: "rejected", label: "Rejected", count: caseCounts.rejected, accent: "bad" as const },
+                  ] as const).map((chip) => {
+                    const active = caseFilter === chip.id;
+                    const hot = chip.id === "awaiting_review" && chip.count > 0;
+                    return (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        className={`filter-chip ${chip.accent}${active ? " active" : ""}${hot ? " hot" : ""}`}
+                        onClick={() => setCaseFilter(chip.id)}
+                      >
+                        {chip.label}
+                        <span className="filter-chip-count">{chip.count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <input
+                  type="search"
+                  placeholder="Suche in Titel, Begründung, Keyword …"
+                  value={caseSearch}
+                  onChange={(event) => setCaseSearch(event.target.value)}
+                  className="case-search"
+                />
+              </div>
+
+              {filteredCases.length === 0 ? (
+                <div className="empty">Keine Cases passen zum Filter.</div>
+              ) : (
+                <div className="case-grid">
+                  {filteredCases.map((item) => {
+                    const edit = editForCase(item);
+                    const needsReview = item.validation_status === "awaiting_review";
+                    return (
+                      <article key={item.case_id} className={`case${needsReview ? " awaiting" : ""}`}>
                     <div className="case-head">
                       <div>
                         <div className="case-title">{item.title}</div>
@@ -622,6 +807,11 @@ export default function HomePage() {
                         </div>
                       </div>
                       <div className="case-pills">
+                        {item.pestel_category ? (
+                          <span className="pill neutral" title={PESTEL_LABEL[item.pestel_category]}>
+                            {item.pestel_category}
+                          </span>
+                        ) : null}
                         <span className={item.is_signal ? "pill ok" : "pill neutral"}>
                           {item.is_signal ? "Signal" : "Noise"}
                         </span>
@@ -629,9 +819,66 @@ export default function HomePage() {
                       </div>
                     </div>
 
+                    {item.zieldreieck_dimensions && item.zieldreieck_dimensions.length > 0 ? (
+                      <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
+                        {item.zieldreieck_dimensions.map((d) => (
+                          <span key={d} className="pill neutral" style={{ fontSize: "0.7rem" }}>
+                            {ZIELDREIECK_LABEL[d] || d}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
                     <p className="case-rationale">{item.rationale}</p>
-                    {item.expert_comment ? (
-                      <p className="meta" style={{ marginTop: "0.4rem" }}>Expert: {item.expert_comment}</p>
+
+                    {item.expert_comment || item.systemic_impact || item.time_horizon || (item.zieldreieck_impact && Object.keys(item.zieldreieck_impact).length > 0) ? (
+                      <div className="expert-block">
+                        <div className="expert-pills">
+                          <span className="expert-label">Energy Expert</span>
+                          {item.expert_valid === false ? (
+                            <span className="pill bad" title="Domain-Validität verworfen">unplausibel</span>
+                          ) : item.expert_valid === true ? (
+                            <span className="pill ok" title="Domain-Validität bestätigt">plausibel</span>
+                          ) : null}
+                          {item.systemic_impact ? (
+                            <span
+                              className={
+                                item.systemic_impact === "HOCH"
+                                  ? "pill warn"
+                                  : item.systemic_impact === "GERING"
+                                  ? "pill neutral"
+                                  : "pill neutral"
+                              }
+                              title="Systemischer Impact auf das Energiesystem"
+                            >
+                              Impact: {item.systemic_impact}
+                            </span>
+                          ) : null}
+                          {item.time_horizon ? (
+                            <span className="pill neutral" title="Geschätzter Zeithorizont">
+                              {item.time_horizon}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {item.expert_comment ? (
+                          <p className="meta" style={{ marginTop: "0.35rem" }}>{item.expert_comment}</p>
+                        ) : null}
+
+                        {item.zieldreieck_impact && Object.keys(item.zieldreieck_impact).length > 0 ? (
+                          <details className="zd-impact">
+                            <summary>Zieldreieck-Impact ({Object.keys(item.zieldreieck_impact).length})</summary>
+                            <dl>
+                              {Object.entries(item.zieldreieck_impact).map(([dim, text]) => (
+                                <div key={dim} className="zd-row">
+                                  <dt>{ZIELDREIECK_LABEL[dim] || dim}</dt>
+                                  <dd>{text}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          </details>
+                        ) : null}
+                      </div>
                     ) : null}
 
                     <div className="case-body">
@@ -698,10 +945,12 @@ export default function HomePage() {
                         </div>
                       </div>
                     </div>
-                  </article>
-                );
-              })}
-            </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </section>
       </main>

@@ -6,6 +6,13 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+PestelCategory = Literal["P", "E", "S", "T", "En", "L"]
+ZieldreieckDimension = Literal["wirtschaftlichkeit", "versorgungssicherheit", "umweltvertraeglichkeit"]
+ValidationStatus = Literal["pending", "awaiting_review", "validated", "rejected"]
+RunStatus = Literal["running", "awaiting_review", "completed", "failed"]
+SystemicImpact = Literal["HOCH", "MITTEL", "GERING"]
+
+
 class SourceItem(BaseModel):
     title: str
     url: str
@@ -22,9 +29,15 @@ class SignalCase(BaseModel):
     rationale: str
     confidence: float = Field(ge=0.0, le=1.0)
     is_signal: bool
-    ansoff_level: int = Field(default=1, ge=1, le=5)
-    validation_status: Literal["pending", "validated", "rejected"] = "pending"
+    ansoff_level: int = Field(default=1, ge=1, le=4)
+    pestel_category: PestelCategory | None = None
+    zieldreieck_dimensions: list[ZieldreieckDimension] = Field(default_factory=list)
+    validation_status: ValidationStatus = "pending"
     expert_comment: str | None = None
+    expert_valid: bool | None = None
+    systemic_impact: SystemicImpact | None = None
+    time_horizon: str | None = None
+    zieldreieck_impact: dict[str, str] = Field(default_factory=dict)
     reviewer_comment: str | None = None
     reviewed_by: str | None = None
     reviewed_at: str | None = None
@@ -45,7 +58,7 @@ class WorkflowRun(BaseModel):
     updated_at: str
     focus: str
     search_terms: list[str]
-    status: Literal["running", "completed", "failed"]
+    status: RunStatus
     steps: list[WorkflowStep]
     summary: dict = Field(default_factory=dict)
 

@@ -99,8 +99,10 @@ Import auf die neu vergebenen IDs aktualisiert werden — Detail im
 
 Zwei Frontends im Repo, beide Next.js:
 
-- **`ui/workflow-console`** — primäres UI zum CrewAI-Backend. Live-Timeline,
-  KPI-Tiles, Run-History, Streaming der LLM-Antworten, Signal/Noise-Review.
+- **`ui/workflow-console`** — primäres UI zum CrewAI-Backend. Live-Timeline mit
+  Progress-Bars für Assessment und Expert, Streaming der LLM-Summaries,
+  Run-History, Case-Filter mit Awaiting-Highlight, HITL-Banner mit
+  Resume-Button, Signal/Noise-Review mit PESTEL- und Zieldreieck-Badges.
 - **`ui/review-console`** — Standalone-Oberfläche für die n8n-Variante
   (HITL-Queue, Audit-Trail). Beschreibung in `docs/HITL_UI_Integration.md`.
 

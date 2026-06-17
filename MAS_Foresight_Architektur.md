@@ -12,16 +12,35 @@
 > Repository eine zweite Implementation derselben Architektur als
 > Python/FastAPI-Backend mit Next.js-UI:
 >
-> - `crewai/` — FastAPI-Backend, RSS-basiertes Scanning, LLM-Klassifikation,
->   Streaming-Summaries via LiteLLM. Persistenz als flat JSON-Store.
-> - `ui/workflow-console/` — UI mit Live-Timeline, Run-History und
->   Human-Review.
+> - `crewai/` — FastAPI-Backend. Implementiert die unten beschriebenen vier
+>   Stages konkret als:
+>   - **Scanning** über kuratierte RSS-Feeds **plus** DuckDuckGo Site-restricted
+>     Suche für die in §5.3 / §11.4 / Anhang 1 genannten deutschen Quellen
+>     (BMWK, BNetzA, Bundestag, Agora, Fraunhofer ISE, DENA, IEA, Tagesschau,
+>     Handelsblatt, Heise, PV Magazine).
+>   - **Assessment** als LLM-Klassifikation pro Case, liefert `is_signal`,
+>     `confidence`, `ansoff_level (1-4)`, `pestel_category` und
+>     `zieldreieck_dimensions` (siehe §6.3 Ansoff-Skala und §4 Zieldreieck).
+>   - **Energy Expert** als zweiter LLM-Call mit dem in §7.3 spezifizierten
+>     Wissensrahmen (Merit-Order, Missing-Money, Kannibalisierung, 3D-
+>     Transformation, Zieldreieck §1 EnWG); liefert `is_valid`,
+>     `systemic_impact (HOCH|MITTEL|GERING)`, `time_horizon` und einen Detail-
+>     Text pro Zieldreieck-Dimension.
+>   - **HITL-Gate** (§14): Workflow stoppt nach dem Expert-Step bei Cases mit
+>     mittlerer Confidence, wartet auf den Human-Review und setzt per
+>     Resume-Endpoint im Scenario-Step fort.
+>   - **Scenario** mit Streaming-Strategic-Alert.
+>   - Persistenz aktuell als flat JSON-Store (entspricht §10.3 n8n Static
+>     Data Approach).
+> - `ui/workflow-console/` — Live-Timeline mit Progress-Bars und
+>   Streaming-Cursor, Run-History, Case-Filter mit Awaiting-Highlight,
+>   HITL-Banner mit Resume-Button, Human-Review mit PESTEL- und Zieldreieck-
+>   Anzeige.
 >
 > Beide Implementationen folgen dem hier beschriebenen Coordinator-Worker-
-> Delegator-Modell und denselben Stage-Definitionen (Scanning → Assessment →
-> Energy Expert → Scenario). Die n8n-Workflow-Exporte liegen in `n8n/`,
-> die laufende Architektur des CrewAI-Backends ist in `WORKFLOW_ARCHITECTURE.md`
-> dokumentiert.
+> Delegator-Modell und denselben Stage-Definitionen. Die n8n-Workflow-Exporte
+> liegen in `n8n/`, die laufende Architektur und Datenflüsse des
+> CrewAI-Backends sind in `WORKFLOW_ARCHITECTURE.md` dokumentiert.
 
 ---
 

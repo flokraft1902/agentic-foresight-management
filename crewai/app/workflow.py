@@ -4,7 +4,13 @@ from datetime import datetime
 from uuid import uuid4
 
 from app.config import settings
-from app.crew_layer import Classification, classify_case, summarize_stage
+from app.crew_layer import (
+    Classification,
+    ExpertValidation,
+    classify_case,
+    summarize_stage,
+    validate_case_expert,
+)
 from app.data_store import get_search_terms, upsert_cases, upsert_run
 from app.models import SignalCase, SourceItem, WorkflowRun, WorkflowStep
 from app.sources import search_sources
@@ -144,6 +150,8 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
                 "Heuristic baseline: trust-score and keyword tokens suggest "
                 f"a {'signal' if heuristic_conf >= 0.62 else 'noise'} candidate for '{term}'."
             ),
+            pestel_category=None,
+            zieldreieck_dimensions=[],
             source="heuristic",
         )
 
@@ -170,6 +178,8 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
             confidence=classification.confidence,
             is_signal=classification.is_signal,
             ansoff_level=classification.ansoff_level,
+            pestel_category=classification.pestel_category,
+            zieldreieck_dimensions=list(classification.zieldreieck_dimensions),
             validation_status="pending",
             sources=[source],
         )
@@ -217,40 +227,94 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
     run.updated_at = _now()
     upsert_run(run)
 
-    # 3) Expert validation
+    # 3) Expert validation – per-case LLM domain check
     step_expert = _start_step("energy_expert_validation")
     run.steps.append(step_expert)
+    step_expert.detail = {"progress": {"validated": 0, "total": len(cases)}}
     upsert_run(run)
 
-    validated_count = 0
-    for case in cases:
-        if case.is_signal and case.confidence >= 0.72:
+    expert_llm_count = 0
+    expert_heuristic_count = 0
+    domain_rejected_count = 0
+
+    for idx, case in enumerate(cases, start=1):
+        snippet = case.sources[0].snippet if case.sources else ""
+
+        expert = validate_case_expert(
+            title=case.title,
+            snippet=snippet,
+            term=case.keyword,
+            focus=resolved_focus,
+            is_signal=case.is_signal,
+            confidence=case.confidence,
+            ansoff_level=case.ansoff_level,
+            pestel_category=case.pestel_category,
+            zieldreieck_dimensions=list(case.zieldreieck_dimensions),
+        )
+
+        case.expert_comment = expert.rationale
+        case.expert_valid = expert.is_valid
+        case.systemic_impact = expert.systemic_impact  # type: ignore[assignment]
+        case.time_horizon = expert.time_horizon
+        case.zieldreieck_impact = dict(expert.zieldreieck_impact)
+
+        # Combine domain verdict with confidence threshold to decide status:
+        # - Domain-rejected by expert overrides everything → rejected
+        # - Otherwise: high-confidence signal → validated, mid-confidence signal → awaiting_review,
+        #   noise stays rejected
+        if not expert.is_valid:
+            case.validation_status = "rejected"
+            domain_rejected_count += 1
+        elif case.is_signal and case.confidence >= 0.72:
             case.validation_status = "validated"
-            case.expert_comment = "Consistent with strategic relevance for the energy transition portfolio."
-            validated_count += 1
         elif case.is_signal:
-            case.validation_status = "pending"
-            case.expert_comment = "Potential signal, but requires human review due to medium confidence."
+            case.validation_status = "awaiting_review"
         else:
             case.validation_status = "rejected"
-            case.expert_comment = "Classified as noise due to weak structural impact evidence."
+
+        if expert.source == "llm":
+            expert_llm_count += 1
+        else:
+            expert_heuristic_count += 1
+
+        if idx % 3 == 0 or idx == len(cases):
+            step_expert.detail = {
+                "progress": {"validated": idx, "total": len(cases)},
+                "llm_validated": expert_llm_count,
+                "heuristic_validated": expert_heuristic_count,
+                "domain_rejected": domain_rejected_count,
+                "validated_count": len([c for c in cases if c.validation_status == "validated"]),
+                "awaiting_review_count": len([c for c in cases if c.validation_status == "awaiting_review"]),
+                "rejected_count": len([c for c in cases if c.validation_status == "rejected"]),
+            }
+            run.updated_at = _now()
+            upsert_run(run)
+
+    validated_count = len([c for c in cases if c.validation_status == "validated"])
 
     expert_summary = summarize_stage(
         stage_name="Energy Expert Agent",
-        objective="Validate strategic relevance and assign confidence context.",
+        objective="Validate strategic relevance via merit-order, missing-money and Zieldreieck checks.",
         on_chunk=_make_streaming_emitter(step_expert, run),
         payload={
             "validated_count": validated_count,
-            "pending_review_count": len([c for c in cases if c.validation_status == "pending"]),
+            "awaiting_review_count": len([c for c in cases if c.validation_status == "awaiting_review"]),
             "rejected_count": len([c for c in cases if c.validation_status == "rejected"]),
+            "domain_rejected": domain_rejected_count,
+            "llm_validated": expert_llm_count,
+            "heuristic_validated": expert_heuristic_count,
         },
     )
     _finish_step(
         step_expert,
         {
             "validated_count": validated_count,
-            "pending_review_count": len([c for c in cases if c.validation_status == "pending"]),
+            "awaiting_review_count": len([c for c in cases if c.validation_status == "awaiting_review"]),
             "rejected_count": len([c for c in cases if c.validation_status == "rejected"]),
+            "domain_rejected": domain_rejected_count,
+            "llm_validated": expert_llm_count,
+            "heuristic_validated": expert_heuristic_count,
+            "progress": {"validated": len(cases), "total": len(cases)},
             "crewai": {
                 "enabled": expert_summary.used_crewai,
                 "summary": expert_summary.text,
@@ -261,7 +325,30 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
     run.updated_at = _now()
     upsert_run(run)
 
+    # HITL Gate: if any case needs human review, pause here.
+    awaiting = [c for c in cases if c.validation_status == "awaiting_review"]
+    if awaiting:
+        run.status = "awaiting_review"
+        run.updated_at = _now()
+        run.summary = {
+            "cases_total": len(cases),
+            "signals": len([c for c in cases if c.is_signal]),
+            "noise": len([c for c in cases if not c.is_signal]),
+            "validated_signals": len([c for c in cases if c.validation_status == "validated"]),
+            "awaiting_review": len(awaiting),
+        }
+        upsert_run(run)
+        return run
+
     # 4) Scenario integration
+    _run_scenario_step(run, cases)
+    return run
+
+
+def _run_scenario_step(run: WorkflowRun, cases: list[SignalCase]) -> None:
+    """Append + execute the scenario integration step. Used by both the
+    end-to-end run path and the HITL resume path."""
+
     step_scenario = _start_step("scenario_integration")
     run.steps.append(step_scenario)
     upsert_run(run)
@@ -308,6 +395,24 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
     }
     upsert_run(run)
 
+
+def resume_run(run_id: str) -> WorkflowRun | None:
+    """Resume a workflow that paused at the HITL gate. Loads the run + cases,
+    runs only the scenario integration step. Returns None if the run cannot
+    be resumed."""
+
+    from app.data_store import get_run, list_cases
+
+    run = get_run(run_id)
+    if not run or run.status != "awaiting_review":
+        return None
+
+    cases = list_cases(run.run_id)
+    run.status = "running"
+    run.updated_at = _now()
+    upsert_run(run)
+
+    _run_scenario_step(run, cases)
     return run
 
 

@@ -37,7 +37,13 @@ class Classification:
     confidence: float
     ansoff_level: int
     rationale: str
+    pestel_category: str | None
+    zieldreieck_dimensions: list[str]
     source: str  # "llm" | "heuristic"
+
+
+_VALID_PESTEL = {"P", "E", "S", "T", "En", "L"}
+_VALID_ZIELDREIECK = {"wirtschaftlichkeit", "versorgungssicherheit", "umweltvertraeglichkeit"}
 
 
 _CLASSIFY_PROMPT = (
@@ -48,12 +54,20 @@ _CLASSIFY_PROMPT = (
     "- Title: {title}\n"
     "- Snippet: {snippet}\n"
     "- Published: {published}\n\n"
-    "Decide whether this article represents a strategic weak signal relevant to the focus, "
-    "or whether it is noise. Estimate your confidence between 0 and 1. Assign an Ansoff matrix "
-    "level: 1 = market penetration, 2 = market development, 3 = product development, "
-    "4 = diversification.\n\n"
+    "Tasks:\n"
+    "1. Decide whether this article is a strategic weak signal relevant to the focus, or noise.\n"
+    "2. Estimate your confidence between 0 and 1.\n"
+    "3. Assign an Ansoff matrix level:\n"
+    "   1 = Sense of threat (vague), 2 = Source known, 3 = Threat characterized, 4 = Response known.\n"
+    "4. Assign exactly one PESTEL category:\n"
+    "   P (Political), E (Economic), S (Social), T (Technological), En (Environmental), L (Legal).\n"
+    "5. Assign one or more affected dimensions of the German energy policy triangle (§1 EnWG):\n"
+    "   wirtschaftlichkeit, versorgungssicherheit, umweltvertraeglichkeit.\n\n"
     "Respond with ONLY a JSON object, no markdown fences or commentary, in this exact shape:\n"
-    '{{"is_signal": true|false, "confidence": 0.0-1.0, "ansoff_level": 1|2|3|4, "rationale": "one concise sentence"}}'
+    '{{"is_signal": true|false, "confidence": 0.0-1.0, "ansoff_level": 1|2|3|4, '
+    '"pestel_category": "P|E|S|T|En|L", '
+    '"zieldreieck_dimensions": ["wirtschaftlichkeit"|"versorgungssicherheit"|"umweltvertraeglichkeit"], '
+    '"rationale": "one concise sentence"}}'
 )
 
 
@@ -125,6 +139,14 @@ def classify_case(
         if ansoff_level not in (1, 2, 3, 4):
             ansoff_level = max(1, min(4, ansoff_level))
         rationale = str(payload.get("rationale", "")).strip() or "Classified by LLM."
+
+        raw_pestel = str(payload.get("pestel_category", "") or "").strip()
+        pestel_category = raw_pestel if raw_pestel in _VALID_PESTEL else None
+
+        raw_dims = payload.get("zieldreieck_dimensions") or []
+        if isinstance(raw_dims, str):
+            raw_dims = [raw_dims]
+        zieldreieck = [d for d in raw_dims if isinstance(d, str) and d in _VALID_ZIELDREIECK]
     except (KeyError, TypeError, ValueError) as exc:
         print(f"[classify_case] invalid JSON payload for term='{term}': {exc}; payload={payload}")
         return heuristic_fallback or _default_heuristic(term)
@@ -134,6 +156,8 @@ def classify_case(
         confidence=round(confidence, 2),
         ansoff_level=ansoff_level,
         rationale=rationale,
+        pestel_category=pestel_category,
+        zieldreieck_dimensions=zieldreieck,
         source="llm",
     )
 
@@ -144,7 +168,161 @@ def _default_heuristic(term: str) -> Classification:
         confidence=0.4,
         ansoff_level=1,
         rationale=f"Heuristic fallback for '{term}': no LLM signal available.",
+        pestel_category=None,
+        zieldreieck_dimensions=[],
         source="heuristic",
+    )
+
+
+# --- Energy Expert Validation ------------------------------------------------
+
+@dataclass
+class ExpertValidation:
+    is_valid: bool
+    systemic_impact: str  # "HOCH" | "MITTEL" | "GERING"
+    time_horizon: str
+    zieldreieck_impact: dict[str, str]
+    rationale: str
+    source: str  # "llm" | "heuristic"
+
+
+_VALID_IMPACT = {"HOCH", "MITTEL", "GERING"}
+
+
+_EXPERT_PROMPT = (
+    "You are the Energy Expert Agent in a foresight system. Your task is the "
+    "domain-specific plausibility check of a weak signal candidate in the German/EU "
+    "energy sector. You serve as the hallucination guard for the pipeline.\n\n"
+    "Apply this knowledge framework:\n"
+    "- Merit-Order: power plants dispatched by ascending marginal cost. Renewables "
+    "at ~0 marginal cost push fossils out and lower spot prices.\n"
+    "- Missing Money Problem: conventional backup plants struggle to cover fixed "
+    "costs in energy-only markets as scarcity prices become rare.\n"
+    "- Cannibalisation: rising RE share lowers the market value of wind/solar.\n"
+    "- 3D Transformation: decarbonisation + decentralisation + digitalisation.\n"
+    "- Zieldreieck (§1 EnWG): Wirtschaftlichkeit, Versorgungssicherheit, Umweltvertraeglichkeit.\n\n"
+    "Strategic focus:\n{focus}\n\n"
+    "Signal under review:\n"
+    "- Title: {title}\n"
+    "- Snippet: {snippet}\n"
+    "- Search term: {term}\n"
+    "- Pre-classification: is_signal={is_signal}, confidence={confidence:.2f}, "
+    "ansoff_level={ansoff_level}, pestel={pestel}, zieldreieck={zieldreieck}\n\n"
+    "Tasks:\n"
+    "1. Decide is_valid: true if the signal is physically AND economically plausible "
+    "given the framework, false if it contradicts known laws (e.g. impossible load "
+    "flows, free-energy claims, ignores Merit-Order).\n"
+    "2. Estimate systemic_impact on the energy system: HOCH / MITTEL / GERING.\n"
+    "3. Estimate time_horizon as a short German phrase (z.B. '6-18 Monate', "
+    "'3-7 Jahre', 'kurzfristig unklar').\n"
+    "4. For each affected dimension of the Zieldreieck, write ONE concrete sentence "
+    "of impact text. Use only dimensions actually relevant - omit the others.\n"
+    "5. Write a 1-2 sentence rationale that names the relevant mechanism "
+    "(Merit-Order, Missing Money, Cannibalisation, Netzphysik, etc.).\n\n"
+    "Respond with ONLY a JSON object, no markdown fences or commentary:\n"
+    "{{\"is_valid\": true|false, \"systemic_impact\": \"HOCH|MITTEL|GERING\", "
+    "\"time_horizon\": \"...\", \"zieldreieck_impact\": "
+    "{{\"wirtschaftlichkeit\": \"...\", \"versorgungssicherheit\": \"...\", "
+    "\"umweltvertraeglichkeit\": \"...\"}}, \"rationale\": \"...\"}}"
+)
+
+
+def _default_expert_heuristic(confidence: float) -> ExpertValidation:
+    impact = "HOCH" if confidence >= 0.82 else "MITTEL" if confidence >= 0.6 else "GERING"
+    return ExpertValidation(
+        is_valid=True,
+        systemic_impact=impact,
+        time_horizon="unklar",
+        zieldreieck_impact={},
+        rationale=(
+            "Heuristik-Fallback: kein LLM-Experten-Call verfuegbar. "
+            f"Bewertung basiert ausschliesslich auf Confidence={confidence:.2f}."
+        ),
+        source="heuristic",
+    )
+
+
+def validate_case_expert(
+    title: str,
+    snippet: str,
+    term: str,
+    focus: str,
+    is_signal: bool,
+    confidence: float,
+    ansoff_level: int,
+    pestel_category: str | None,
+    zieldreieck_dimensions: list[str],
+    heuristic_fallback: "ExpertValidation | None" = None,
+) -> ExpertValidation:
+    """Domain validation of a single case via the energy expert LLM."""
+
+    if not settings.llm_api_key:
+        return heuristic_fallback or _default_expert_heuristic(confidence)
+
+    try:
+        from litellm import completion  # type: ignore
+    except Exception:
+        return heuristic_fallback or _default_expert_heuristic(confidence)
+
+    prompt = _EXPERT_PROMPT.format(
+        focus=focus or "(none)",
+        title=title or "(no title)",
+        snippet=(snippet or "")[:600],
+        term=term,
+        is_signal=is_signal,
+        confidence=confidence,
+        ansoff_level=ansoff_level,
+        pestel=pestel_category or "?",
+        zieldreieck=", ".join(zieldreieck_dimensions) or "?",
+    )
+
+    try:
+        response = completion(
+            model=settings.llm_model,
+            api_key=settings.llm_api_key,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=380,
+            temperature=0.15,
+            timeout=45,
+        )
+        text = response.choices[0].message.content or ""
+    except Exception as exc:
+        print(f"[validate_case_expert] LLM call failed: {exc}")
+        return heuristic_fallback or _default_expert_heuristic(confidence)
+
+    payload = _extract_json(text)
+    if not payload:
+        print(f"[validate_case_expert] could not parse JSON. Raw: {text[:160]}")
+        return heuristic_fallback or _default_expert_heuristic(confidence)
+
+    try:
+        is_valid = bool(payload["is_valid"])
+        impact = str(payload.get("systemic_impact", "")).strip().upper()
+        if impact not in _VALID_IMPACT:
+            impact = "MITTEL"
+        time_horizon = str(payload.get("time_horizon", "")).strip() or "unklar"
+        rationale = str(payload.get("rationale", "")).strip() or "Validated by LLM."
+
+        raw_imp = payload.get("zieldreieck_impact") or {}
+        zieldreieck_impact: dict[str, str] = {}
+        if isinstance(raw_imp, dict):
+            for k in ("wirtschaftlichkeit", "versorgungssicherheit", "umweltvertraeglichkeit"):
+                v = raw_imp.get(k)
+                if isinstance(v, str):
+                    v = v.strip()
+                    if v and v.lower() not in ("none", "n/a", "-", ""):
+                        zieldreieck_impact[k] = v[:280]
+    except (KeyError, TypeError, ValueError) as exc:
+        print(f"[validate_case_expert] invalid payload: {exc}; payload={payload}")
+        return heuristic_fallback or _default_expert_heuristic(confidence)
+
+    return ExpertValidation(
+        is_valid=is_valid,
+        systemic_impact=impact,
+        time_horizon=time_horizon[:60],
+        zieldreieck_impact=zieldreieck_impact,
+        rationale=rationale[:400],
+        source="llm",
     )
 
 

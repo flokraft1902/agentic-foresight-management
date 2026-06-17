@@ -501,6 +501,17 @@ details.step-detail pre {
   word-break: break-word;
 }
 
+/* ---------- HITL banner ---------- */
+
+.hitl-banner {
+  border-left: 4px solid var(--warn);
+  background: var(--warn-soft);
+}
+
+.hitl-banner strong {
+  color: var(--ink);
+}
+
 /* ---------- Run history ---------- */
 
 .run-list {
@@ -563,6 +574,88 @@ details.step-detail pre {
   white-space: nowrap;
 }
 
+/* ---------- Case filter bar ---------- */
+
+.case-filter-bar {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.case-filter-chips {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.filter-chip:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.filter-chip.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: white;
+}
+
+.filter-chip.warn.hot:not(.active) {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+  animation: chipPulse 2s ease-in-out infinite;
+}
+
+@keyframes chipPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(161, 98, 7, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(161, 98, 7, 0.15); }
+}
+
+.filter-chip-count {
+  font-feature-settings: "tnum";
+  background: rgba(0, 0, 0, 0.08);
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  min-width: 18px;
+  text-align: center;
+}
+
+.filter-chip.active .filter-chip-count {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.filter-chip.warn.hot:not(.active) .filter-chip-count {
+  background: rgba(161, 98, 7, 0.2);
+}
+
+.case-search {
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+  margin-top: 0 !important;
+}
+
 /* ---------- Case cards ---------- */
 
 .case-grid {
@@ -575,6 +668,31 @@ details.step-detail pre {
   border-radius: var(--radius);
   padding: 1rem 1.1rem;
   background: var(--surface);
+  position: relative;
+}
+
+.case.awaiting {
+  border-color: var(--warn);
+  background: linear-gradient(0deg, var(--surface), var(--surface)),
+              var(--warn-soft);
+  background-blend-mode: normal;
+  box-shadow: -3px 0 0 0 var(--warn) inset;
+  padding-left: 1.3rem;
+}
+
+.case.awaiting::before {
+  content: "Review nötig";
+  position: absolute;
+  top: -10px;
+  left: 14px;
+  background: var(--warn);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .case-head {
@@ -609,6 +727,85 @@ details.step-detail pre {
   margin-top: 0.55rem;
   font-size: 0.88rem;
   color: var(--ink);
+}
+
+.expert-block {
+  margin-top: 0.7rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--line);
+}
+
+.expert-pills {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.expert-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-right: 0.3rem;
+}
+
+.zd-impact {
+  margin-top: 0.45rem;
+}
+
+.zd-impact summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  user-select: none;
+  list-style: none;
+}
+
+.zd-impact summary::before {
+  content: "▸ ";
+  display: inline-block;
+}
+
+.zd-impact[open] summary::before {
+  content: "▾ ";
+}
+
+.zd-impact dl {
+  margin: 0.4rem 0 0;
+  padding: 0;
+}
+
+.zd-row {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.zd-row:first-child {
+  border-top: none;
+}
+
+.zd-row dt {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.zd-row dd {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+@media (max-width: 600px) {
+  .zd-row {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
 }
 
 .case-body {

@@ -74,6 +74,8 @@ def list_runs(limit: int = 25) -> list[WorkflowRun]:
 
 
 def has_active_run() -> bool:
+    """Return True only if a workflow is genuinely mid-execution (not just
+    paused for HITL review)."""
     state = load_state()
     return any(run.status == "running" for run in state.runs)
 

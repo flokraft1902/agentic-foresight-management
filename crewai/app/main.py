@@ -22,7 +22,7 @@ from app.data_store import (
     upsert_run,
 )
 from app.models import ReviewCaseRequest, StartWorkflowRequest, UpdateSearchTermsRequest
-from app.workflow import execute_run, prepare_run
+from app.workflow import execute_run, prepare_run, resume_run
 
 app = FastAPI(title="CrewAI Foresight Backend", version="0.1.0")
 
@@ -84,6 +84,22 @@ def _background_execute(run_id: str) -> None:
         upsert_run(latest)
 
 
+def _background_resume(run_id: str) -> None:
+    from app.data_store import get_run
+
+    try:
+        resume_run(run_id)
+    except Exception:
+        traceback.print_exc()
+        latest = get_run(run_id)
+        if latest is None:
+            return
+        latest.status = "failed"
+        latest.updated_at = datetime.utcnow().isoformat() + "Z"
+        latest.summary = {**latest.summary, "error": "resume failed; see backend logs"}
+        upsert_run(latest)
+
+
 @app.post("/workflow/start")
 def start_workflow(payload: StartWorkflowRequest) -> dict:
     run = prepare_run(search_terms=payload.search_terms, focus=payload.focus)
@@ -94,6 +110,31 @@ def start_workflow(payload: StartWorkflowRequest) -> dict:
         "run": run.model_dump(),
         "cases": [],
     }
+
+
+@app.post("/workflow/{run_id}/resume")
+def resume_workflow(run_id: str) -> dict:
+    run = get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    if run.status != "awaiting_review":
+        raise HTTPException(
+            status_code=409,
+            detail=f"run is in status '{run.status}', not 'awaiting_review' - nothing to resume.",
+        )
+    pending = [c for c in list_cases(run_id) if c.validation_status == "awaiting_review"]
+    if pending:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{len(pending)} cases still need human review. Mark each as signal "
+                "(approve) or noise (reject) before resuming."
+            ),
+        )
+
+    thread = threading.Thread(target=_background_resume, args=(run_id,), daemon=True)
+    thread.start()
+    return {"ok": True, "run_id": run_id, "status": "resuming"}
 
 
 @app.delete("/workflow")
@@ -173,10 +214,8 @@ def review_case(case_id: str, payload: ReviewCaseRequest) -> dict:
     case.reviewed_by = payload.reviewer
     case.reviewed_at = datetime.utcnow().isoformat() + "Z"
 
-    if case.is_signal and case.validation_status == "rejected":
-        case.validation_status = "pending"
-    if not case.is_signal:
-        case.validation_status = "rejected"
+    # Human review is a decisive vote: signal => validated, noise => rejected.
+    case.validation_status = "validated" if case.is_signal else "rejected"
 
     updated = upsert_case(case)
     return {"ok": True, "case": updated.model_dump()}
