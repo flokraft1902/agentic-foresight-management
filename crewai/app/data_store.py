@@ -67,6 +67,27 @@ def get_run(run_id: str) -> WorkflowRun | None:
     return next((item for item in state.runs if item.run_id == run_id), None)
 
 
+def list_runs(limit: int = 25) -> list[WorkflowRun]:
+    state = load_state()
+    sorted_runs = sorted(state.runs, key=lambda r: r.created_at, reverse=True)
+    return sorted_runs[:limit]
+
+
+def has_active_run() -> bool:
+    state = load_state()
+    return any(run.status == "running" for run in state.runs)
+
+
+def clear_history() -> dict:
+    state = load_state()
+    deleted_runs = len(state.runs)
+    deleted_cases = len(state.cases)
+    state.runs = []
+    state.cases = []
+    save_state(state)
+    return {"deleted_runs": deleted_runs, "deleted_cases": deleted_cases}
+
+
 def list_cases(run_id: str | None = None) -> list[SignalCase]:
     state = load_state()
     all_cases = state.cases

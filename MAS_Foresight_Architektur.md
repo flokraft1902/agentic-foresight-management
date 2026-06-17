@@ -7,6 +7,24 @@
 
 ---
 
+> **Hinweis zur Implementation:** Dieses Dokument beschreibt die ursprüngliche
+> n8n-basierte Architektur aus der Seminararbeit. Parallel dazu existiert im
+> Repository eine zweite Implementation derselben Architektur als
+> Python/FastAPI-Backend mit Next.js-UI:
+>
+> - `crewai/` — FastAPI-Backend, RSS-basiertes Scanning, LLM-Klassifikation,
+>   Streaming-Summaries via LiteLLM. Persistenz als flat JSON-Store.
+> - `ui/workflow-console/` — UI mit Live-Timeline, Run-History und
+>   Human-Review.
+>
+> Beide Implementationen folgen dem hier beschriebenen Coordinator-Worker-
+> Delegator-Modell und denselben Stage-Definitionen (Scanning → Assessment →
+> Energy Expert → Scenario). Die n8n-Workflow-Exporte liegen in `n8n/`,
+> die laufende Architektur des CrewAI-Backends ist in `WORKFLOW_ARCHITECTURE.md`
+> dokumentiert.
+
+---
+
 ## Inhaltsverzeichnis
 
 1. [Systemübersicht](#1-systemübersicht)

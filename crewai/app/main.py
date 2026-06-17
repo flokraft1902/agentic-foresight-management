@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import traceback
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Query
@@ -8,15 +10,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.crew_layer import probe_llm
 from app.data_store import (
+    clear_history,
     get_case,
     get_run,
     get_search_terms,
+    has_active_run,
     list_cases,
+    list_runs,
     set_search_terms,
     upsert_case,
+    upsert_run,
 )
 from app.models import ReviewCaseRequest, StartWorkflowRequest, UpdateSearchTermsRequest
-from app.workflow import run_workflow
+from app.workflow import execute_run, prepare_run
 
 app = FastAPI(title="CrewAI Foresight Backend", version="0.1.0")
 
@@ -61,14 +67,67 @@ def write_search_terms(payload: UpdateSearchTermsRequest) -> dict:
     return {"ok": True, "search_terms": cfg.search_terms}
 
 
+def _background_execute(run_id: str) -> None:
+    from app.data_store import get_run
+
+    run = get_run(run_id)
+    if run is None:
+        return
+    try:
+        execute_run(run)
+    except Exception:
+        traceback.print_exc()
+        latest = get_run(run_id) or run
+        latest.status = "failed"
+        latest.updated_at = datetime.utcnow().isoformat() + "Z"
+        latest.summary = {**latest.summary, "error": "execution failed; see backend logs"}
+        upsert_run(latest)
+
+
 @app.post("/workflow/start")
 def start_workflow(payload: StartWorkflowRequest) -> dict:
-    run = run_workflow(search_terms=payload.search_terms, focus=payload.focus)
-    cases = list_cases(run.run_id)
+    run = prepare_run(search_terms=payload.search_terms, focus=payload.focus)
+    thread = threading.Thread(target=_background_execute, args=(run.run_id,), daemon=True)
+    thread.start()
     return {
         "ok": True,
         "run": run.model_dump(),
-        "cases": [case.model_dump() for case in cases],
+        "cases": [],
+    }
+
+
+@app.delete("/workflow")
+def clear_workflow_history(force: bool = Query(default=False)) -> dict:
+    if has_active_run() and not force:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Es gibt Runs im Status 'running'. Falls diese verwaist sind "
+                "(z. B. nach uvicorn-Neustart), erneut mit ?force=true loeschen."
+            ),
+        )
+    stats = clear_history()
+    return {"ok": True, "forced": force, **stats}
+
+
+@app.get("/workflow")
+def list_workflow_runs(limit: int = Query(default=25, ge=1, le=100)) -> dict:
+    runs = list_runs(limit=limit)
+    return {
+        "ok": True,
+        "runs": [
+            {
+                "run_id": run.run_id,
+                "created_at": run.created_at,
+                "updated_at": run.updated_at,
+                "status": run.status,
+                "focus": run.focus,
+                "search_terms": run.search_terms,
+                "summary": run.summary,
+                "step_count": len(run.steps),
+            }
+            for run in runs
+        ],
     }
 
 

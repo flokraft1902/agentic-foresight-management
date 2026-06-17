@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { SignalCase, WorkflowResponse, WorkflowRun } from "../lib/types";
+import type {
+  RunListResponse,
+  RunSummary,
+  SignalCase,
+  WorkflowResponse,
+  WorkflowRun,
+  WorkflowStep,
+} from "../lib/types";
 
 interface CaseEditState {
   is_signal: boolean;
@@ -19,10 +26,50 @@ interface LlmHealth {
   at?: string;
 }
 
-function statusBadgeClass(status: string): string {
-  if (status === "done" || status === "completed" || status === "validated") return "badge ok";
-  if (status === "running" || status === "pending") return "badge warn";
-  return "badge bad";
+function statusPillClass(status: string): string {
+  if (status === "done" || status === "completed" || status === "validated") return "pill ok";
+  if (status === "running" || status === "pending") return "pill warn";
+  if (status === "failed" || status === "rejected") return "pill bad";
+  return "pill neutral";
+}
+
+function formatTime(iso?: string): string {
+  if (!iso) return "–";
+  try {
+    return new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "–";
+  }
+}
+
+function stepCrewSummary(step: WorkflowStep): string | null {
+  const crewai = (step.detail as { crewai?: { summary?: string } }).crewai;
+  return crewai?.summary || null;
+}
+
+function stepUsedCrewai(step: WorkflowStep): boolean | null {
+  const crewai = (step.detail as { crewai?: { enabled?: boolean } }).crewai;
+  if (crewai === undefined) return null;
+  return crewai.enabled === true;
+}
+
+function stepIsStreaming(step: WorkflowStep): boolean {
+  const crewai = (step.detail as { crewai?: { streaming?: boolean } }).crewai;
+  return crewai?.streaming === true && step.status !== "done";
+}
+
+interface AssessmentProgress {
+  progress?: { classified: number; total: number };
+  llm_classified?: number;
+  heuristic_classified?: number;
+  signal_count?: number;
+  noise_count?: number;
+}
+
+function stepProgressInfo(step: WorkflowStep): AssessmentProgress | null {
+  const d = step.detail as AssessmentProgress;
+  if (!d || (!d.progress && d.llm_classified === undefined)) return null;
+  return d;
 }
 
 export default function HomePage() {
@@ -37,11 +84,82 @@ export default function HomePage() {
   const [caseEdits, setCaseEdits] = useState<Record<string, CaseEditState>>({});
   const [llmHealth, setLlmHealth] = useState<LlmHealth | null>(null);
   const [llmChecking, setLlmChecking] = useState(false);
+  const [runList, setRunList] = useState<RunSummary[]>([]);
 
   useEffect(() => {
     void loadTerms();
     void checkLlmHealth();
+    void loadRunList();
   }, []);
+
+  async function loadRunList(): Promise<void> {
+    try {
+      const response = await fetch("/api/workflow?limit=15", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = (await response.json()) as RunListResponse;
+      if (data.ok) setRunList(data.runs);
+    } catch {
+      // ignore transient errors
+    }
+  }
+
+  async function resetHistory(): Promise<void> {
+    if (!window.confirm("Wirklich die gesamte Run History loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.")) {
+      return;
+    }
+    await performReset(false);
+  }
+
+  async function performReset(force: boolean): Promise<void> {
+    try {
+      const url = force ? "/api/workflow?force=true" : "/api/workflow";
+      const response = await fetch(url, { method: "DELETE" });
+      const data = (await response.json()) as { ok?: boolean; detail?: string; deleted_runs?: number };
+
+      if (response.status === 409 && !force) {
+        const proceed = window.confirm(
+          (data.detail || "Es laufen Runs.") +
+            "\n\nWahrscheinlich verwaiste Runs aus alten Sessions. Trotzdem alles loeschen?",
+        );
+        if (proceed) {
+          await performReset(true);
+        }
+        return;
+      }
+
+      if (!response.ok || !data.ok) {
+        setMessage(data.detail || "Reset fehlgeschlagen.");
+        return;
+      }
+      setRun(null);
+      setCases([]);
+      setRunList([]);
+      setMessage(`History geloescht (${data.deleted_runs} Runs).`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Reset fehlgeschlagen.");
+    }
+  }
+
+  async function loadRun(runId: string): Promise<void> {
+    setMessage(`Lade Run ${runId} …`);
+    const response = await fetch(`/api/workflow/${runId}`, { cache: "no-store" });
+    if (!response.ok) {
+      setMessage(`Run ${runId} konnte nicht geladen werden.`);
+      return;
+    }
+    const data = (await response.json()) as WorkflowResponse;
+    if (data.ok) {
+      setRun(data.run);
+      setCases(data.cases || []);
+      setMessage(`Run ${runId} geladen.`);
+    }
+  }
+
+  async function loadTerms(): Promise<void> {
+    const response = await fetch("/api/config/search-terms", { cache: "no-store" });
+    const data = (await response.json()) as { search_terms: string[] };
+    setTermsText((data.search_terms || []).join(", "));
+  }
 
   async function checkLlmHealth(): Promise<void> {
     setLlmChecking(true);
@@ -60,29 +178,8 @@ export default function HomePage() {
     }
   }
 
-  function llmBadgeClass(): string {
-    if (!llmHealth) return "badge warn";
-    return llmHealth.ok ? "badge ok" : "badge bad";
-  }
-
-  function llmBadgeLabel(): string {
-    if (llmChecking) return "pruefe...";
-    if (!llmHealth) return "unbekannt";
-    if (llmHealth.ok) return "LLM live";
-    return `Fallback (${llmHealth.status})`;
-  }
-
-  async function loadTerms(): Promise<void> {
-    const response = await fetch("/api/config/search-terms", { cache: "no-store" });
-    const data = (await response.json()) as { search_terms: string[] };
-    setTermsText((data.search_terms || []).join(", "));
-  }
-
   function parsedTerms(): string[] {
-    return termsText
-      .split(",")
-      .map((term) => term.trim())
-      .filter(Boolean);
+    return termsText.split(",").map((term) => term.trim()).filter(Boolean);
   }
 
   async function saveTerms(): Promise<void> {
@@ -92,16 +189,12 @@ export default function HomePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ search_terms }),
     });
-    if (!response.ok) {
-      setMessage("Fehler beim Speichern der Suchbegriffe.");
-      return;
-    }
-    setMessage("Suchbegriffe gespeichert.");
+    setMessage(response.ok ? "Suchbegriffe gespeichert." : "Fehler beim Speichern.");
   }
 
   async function startWorkflow(): Promise<void> {
     setLoading(true);
-    setMessage("Workflow wird gestartet...");
+    setMessage("Workflow gestartet — Live-Updates folgen …");
     try {
       const response = await fetch("/api/workflow/start", {
         method: "POST",
@@ -111,13 +204,14 @@ export default function HomePage() {
       const data = (await response.json()) as WorkflowResponse;
       if (!response.ok || !data.ok) {
         setMessage("Workflow konnte nicht gestartet werden.");
+        setLoading(false);
         return;
       }
       setRun(data.run);
       setCases(data.cases || []);
-      setMessage(`Workflow abgeschlossen. Run-ID: ${data.run.run_id}`);
-      void checkLlmHealth();
-    } finally {
+      void loadRunList();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Start fehlgeschlagen.");
       setLoading(false);
     }
   }
@@ -132,6 +226,48 @@ export default function HomePage() {
       setMessage("Daten aktualisiert.");
     }
   }
+
+  // Live polling while the run is still in progress
+  useEffect(() => {
+    if (!run || run.status !== "running") {
+      if (loading && run && run.status !== "running") {
+        setLoading(false);
+        setMessage(
+          run.status === "completed"
+            ? `Run ${run.run_id} abgeschlossen.`
+            : `Run ${run.run_id} ${run.status}.`,
+        );
+        void checkLlmHealth();
+        void loadRunList();
+      }
+      return;
+    }
+
+    let cancelled = false;
+    let tick = 0;
+    const intervalId = window.setInterval(async () => {
+      tick += 1;
+      try {
+        const response = await fetch(`/api/workflow/${run.run_id}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as WorkflowResponse;
+        if (cancelled) return;
+        if (data.ok) {
+          setRun(data.run);
+          setCases(data.cases || []);
+        }
+        if (tick % 4 === 0) void loadRunList();
+      } catch {
+        // swallow transient polling errors
+      }
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.run_id, run?.status]);
 
   function editForCase(item: SignalCase): CaseEditState {
     return (
@@ -152,13 +288,7 @@ export default function HomePage() {
         corrected_title: "",
         corrected_rationale: "",
       };
-      return {
-        ...prev,
-        [caseId]: {
-          ...current,
-          ...patch,
-        },
-      };
+      return { ...prev, [caseId]: { ...current, ...patch } };
     });
   }
 
@@ -167,214 +297,363 @@ export default function HomePage() {
     const response = await fetch(`/api/cases/${item.case_id}/review`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...state,
-        reviewer: "frontend.reviewer",
-      }),
+      body: JSON.stringify({ ...state, reviewer: "frontend.reviewer" }),
     });
-
     if (!response.ok) {
-      setMessage(`Review fuer ${item.case_id} konnte nicht gespeichert werden.`);
+      setMessage(`Review für ${item.case_id} fehlgeschlagen.`);
       return;
     }
-
-    setMessage(`Review fuer ${item.case_id} gespeichert.`);
+    setMessage(`Review für ${item.case_id} gespeichert.`);
     await refreshRun();
   }
 
   const summary = useMemo(() => run?.summary || {}, [run]);
+  const llmPillClass = !llmHealth ? "pill neutral" : llmHealth.ok ? "pill ok" : "pill bad";
+  const llmPillLabel = llmChecking
+    ? "prüft …"
+    : !llmHealth
+    ? "unbekannt"
+    : llmHealth.ok
+    ? "LLM live"
+    : `Fallback`;
 
   return (
-    <main className="grid" style={{ gap: "1rem", paddingTop: "1.2rem", paddingBottom: "3rem" }}>
-      <section className="card fade-up">
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div>
-            <h1 style={{ marginTop: 0, marginBottom: "0.5rem" }}>Foresight Workflow Console</h1>
-            <p className="meta" style={{ marginTop: 0 }}>
-              End-to-end Steuerung fuer das CrewAI Multi-Agenten-System mit transparenter Prozessansicht,
-              aenderbaren Suchbegriffen, Human-Review von Signal/Noise und Quellennachweisen.
-            </p>
+    <>
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="brand">
+            <div className="brand-dot" />
+            <div>
+              <div className="brand-title">Foresight Workflow Console</div>
+              <div className="brand-sub">CrewAI Multi-Agent · Energie-Weak-Signals</div>
+            </div>
           </div>
-          <div
-            className="card"
-            style={{ minWidth: "240px", padding: "0.6rem 0.8rem" }}
-            title={llmHealth?.detail || ""}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", justifyContent: "space-between" }}>
-              <strong>LLM Status</strong>
-              <span className={llmBadgeClass()}>{llmBadgeLabel()}</span>
-            </div>
-            <div className="meta" style={{ marginTop: "0.3rem" }}>
-              Model: {llmHealth?.model || "-"}
-            </div>
-            <div className="meta">
-              API Key: {llmHealth?.api_key_present ? "gesetzt" : "fehlt"}
-            </div>
-            {llmHealth?.detail ? (
-              <div className="meta" style={{ marginTop: "0.3rem", wordBreak: "break-word" }}>
-                {llmHealth.detail.length > 140 ? `${llmHealth.detail.slice(0, 140)}...` : llmHealth.detail}
-              </div>
-            ) : null}
-            <button
-              type="button"
-              className="secondary"
-              style={{ marginTop: "0.5rem", width: "100%" }}
-              onClick={() => void checkLlmHealth()}
-              disabled={llmChecking}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span
+              className={llmPillClass}
+              title={llmHealth?.detail || ""}
+              style={{ cursor: "help" }}
             >
-              {llmChecking ? "pruefe..." : "Erneut pruefen"}
+              <span className="dot" />
+              {llmPillLabel}
+            </span>
+            <span className="kbd" title={llmHealth?.model}>{llmHealth?.model?.split("/").pop() || "—"}</span>
+            <button className="ghost" onClick={() => void checkLlmHealth()} disabled={llmChecking} type="button">
+              ↻
             </button>
           </div>
         </div>
-        {message ? <p className="meta" style={{ marginBottom: 0 }}>{message}</p> : null}
-      </section>
+      </header>
 
-      <section className="grid two">
-        <article className="card fade-up">
-          <h2 style={{ marginTop: 0 }}>Workflow Konfiguration</h2>
-          <label>
-            Suchoberbegriffe (komma-getrennt)
-            <textarea
-              rows={4}
-              value={termsText}
-              onChange={(event) => setTermsText(event.target.value)}
-              placeholder="hydrogen import germany, energy storage solid state battery"
-            />
-          </label>
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.6rem" }}>
-            <button className="secondary" onClick={() => void saveTerms()} type="button">
-              Suchbegriffe speichern
-            </button>
+      <main className="fade-up">
+        {/* Konfiguration + Run Übersicht */}
+        <section className="grid two">
+          <article className="surface">
+            <div className="surface-header">
+              <h2>Konfiguration</h2>
+              <span className="meta">{parsedTerms().length} Begriffe</span>
+            </div>
+
+            <label>
+              Suchbegriffe (komma-getrennt)
+              <textarea
+                rows={3}
+                value={termsText}
+                onChange={(event) => setTermsText(event.target.value)}
+                placeholder="hydrogen import germany, energy storage solid state battery"
+              />
+            </label>
+
+            <label>
+              Strategischer Fokus
+              <textarea rows={2} value={focus} onChange={(event) => setFocus(event.target.value)} />
+            </label>
+
+            <div className="btn-row">
+              <button onClick={() => void saveTerms()} type="button">
+                Begriffe speichern
+              </button>
+              <button className="primary" onClick={() => void startWorkflow()} type="button" disabled={loading}>
+                {loading ? "Läuft …" : "Workflow starten"}
+              </button>
+              <button onClick={() => void refreshRun()} type="button" disabled={!run}>
+                Aktualisieren
+              </button>
+            </div>
+
+            {message ? <div className="toast">{message}</div> : null}
+          </article>
+
+          <article className="surface">
+            <div className="surface-header">
+              <h2>Run Übersicht</h2>
+              {run ? <span className={statusPillClass(run.status)}>{run.status}</span> : null}
+            </div>
+
+            {!run ? (
+              <div className="empty">Noch kein Run gestartet.</div>
+            ) : (
+              <>
+                <div className="grid four">
+                  <div className="kpi">
+                    <div className="kpi-label">Cases</div>
+                    <div className="kpi-value">{summary.cases_total || 0}</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-label">Signale</div>
+                    <div className="kpi-value" style={{ color: "var(--ok)" }}>{summary.signals || 0}</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-label">Noise</div>
+                    <div className="kpi-value" style={{ color: "var(--ink-faint)" }}>{summary.noise || 0}</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="kpi-label">Validiert</div>
+                    <div className="kpi-value" style={{ color: "var(--accent)" }}>{summary.validated_signals || 0}</div>
+                  </div>
+                </div>
+
+                <div className="divider" />
+
+                <div style={{ display: "grid", gap: "0.35rem", fontSize: "0.8rem", color: "var(--ink-soft)", marginTop: "auto" }}>
+                  <div><span className="kbd">{run.run_id}</span></div>
+                  <div>Gestartet {formatTime(run.created_at)} · {new Date(run.created_at).toLocaleDateString("de-DE")}</div>
+                  <div
+                    title={run.focus}
+                    style={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      minWidth: 0,
+                      maxWidth: "100%",
+                    }}
+                  >
+                    Fokus: {run.focus}
+                  </div>
+                </div>
+              </>
+            )}
+          </article>
+        </section>
+
+        {/* Run History */}
+        <section className="surface">
+          <div className="surface-header">
+            <h2>Run History</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span className="meta">{runList.length} Runs</span>
+              <button className="ghost" type="button" onClick={() => void loadRunList()} title="Liste neu laden">
+                ↻
+              </button>
+              <button
+                className="ghost"
+                type="button"
+                onClick={() => void resetHistory()}
+                disabled={runList.length === 0}
+                title="Alle Runs und Cases loeschen"
+                style={{ color: "var(--bad)" }}
+              >
+                Reset
+              </button>
+            </div>
           </div>
 
-          <label style={{ marginTop: "0.8rem", display: "block" }}>
-            Strategischer Fokus
-            <textarea rows={3} value={focus} onChange={(event) => setFocus(event.target.value)} />
-          </label>
-
-          <div style={{ display: "flex", gap: "0.6rem", marginTop: "0.8rem", flexWrap: "wrap" }}>
-            <button className="primary" onClick={() => void startWorkflow()} type="button" disabled={loading}>
-              {loading ? "Workflow laeuft..." : "Workflow starten"}
-            </button>
-            <button onClick={() => void refreshRun()} type="button" disabled={!run}>
-              Letzten Run aktualisieren
-            </button>
-          </div>
-        </article>
-
-        <article className="card fade-up">
-          <h2 style={{ marginTop: 0 }}>Run Uebersicht</h2>
-          {!run ? (
-            <p className="meta">Noch kein Run gestartet.</p>
+          {runList.length === 0 ? (
+            <div className="empty">Noch keine Runs gespeichert.</div>
           ) : (
-            <div className="grid" style={{ gap: "0.5rem" }}>
-              <div><strong>Run:</strong> {run.run_id}</div>
-              <div><strong>Status:</strong> <span className={statusBadgeClass(run.status)}>{run.status}</span></div>
-              <div><strong>Erstellt:</strong> {new Date(run.created_at).toLocaleString("de-DE")}</div>
-              <div><strong>Fokus:</strong> {run.focus}</div>
-              <div className="grid three" style={{ marginTop: "0.4rem" }}>
-                <div className="card">
-                  <div className="meta">Cases</div>
-                  <strong>{summary.cases_total || 0}</strong>
-                </div>
-                <div className="card">
-                  <div className="meta">Signale</div>
-                  <strong>{summary.signals || 0}</strong>
-                </div>
-                <div className="card">
-                  <div className="meta">Noise</div>
-                  <strong>{summary.noise || 0}</strong>
-                </div>
-              </div>
+            <div className="run-list">
+              {runList.map((item) => {
+                const isActive = run?.run_id === item.run_id;
+                const signals = Number(item.summary?.signals || 0);
+                const total = Number(item.summary?.cases_total || 0);
+                const validated = Number(item.summary?.validated_signals || 0);
+                return (
+                  <button
+                    key={item.run_id}
+                    type="button"
+                    className={`run-item${isActive ? " active" : ""}`}
+                    onClick={() => void loadRun(item.run_id)}
+                  >
+                    <div className="run-item-head">
+                      <span className="kbd">{item.run_id.replace("run_", "").slice(0, 17)}</span>
+                      <span className={statusPillClass(item.status)}>{item.status}</span>
+                    </div>
+                    <div className="run-item-meta">
+                      {formatTime(item.created_at)} · {new Date(item.created_at).toLocaleDateString("de-DE")}
+                    </div>
+                    <div className="run-item-stats">
+                      <span>
+                        <strong style={{ color: "var(--ok)" }}>{signals}</strong>
+                        <span className="meta"> Signale</span>
+                      </span>
+                      <span>
+                        <strong>{total}</strong>
+                        <span className="meta"> Cases</span>
+                      </span>
+                      <span>
+                        <strong style={{ color: "var(--accent)" }}>{validated}</strong>
+                        <span className="meta"> validiert</span>
+                      </span>
+                    </div>
+                    <div className="run-item-terms" title={item.search_terms.join(", ")}>
+                      {item.search_terms.slice(0, 3).join(", ")}
+                      {item.search_terms.length > 3 ? ` +${item.search_terms.length - 3}` : ""}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
-        </article>
-      </section>
+        </section>
 
-      <section className="card fade-up">
-        <h2 style={{ marginTop: 0 }}>Transparente Workflow Schritte</h2>
-        {!run || run.steps.length === 0 ? (
-          <p className="meta">Nach dem Start werden hier alle Schritte mit Details angezeigt.</p>
-        ) : (
-          <div className="timeline">
-            {run.steps.map((step) => {
-              const crewInfo = (step.detail as { crewai?: { enabled?: boolean } }).crewai;
-              const usedCrewai = crewInfo?.enabled === true;
-              return (
-                <article key={step.name} className={`step ${step.status}`}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-                    <strong>{step.name}</strong>
-                    <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-                      <span
-                        className={crewInfo === undefined ? "badge warn" : usedCrewai ? "badge ok" : "badge bad"}
-                        title={usedCrewai ? "LLM wurde fuer diesen Schritt aufgerufen" : "Fallback-Heuristik, kein LLM-Call"}
-                      >
-                        {crewInfo === undefined ? "LLM: n/a" : usedCrewai ? "LLM live" : "LLM fallback"}
-                      </span>
-                      <span className={statusBadgeClass(step.status)}>{step.status}</span>
-                    </div>
-                  </div>
-                  <p className="meta" style={{ marginBottom: "0.3rem" }}>
-                    Start: {step.started_at ? new Date(step.started_at).toLocaleString("de-DE") : "-"} | Ende: {step.finished_at ? new Date(step.finished_at).toLocaleString("de-DE") : "-"}
-                  </p>
-                  <pre style={{ margin: 0 }}>{JSON.stringify(step.detail, null, 2)}</pre>
-                </article>
-              );
-            })}
+        {/* Workflow Schritte */}
+        <section className="surface">
+          <div className="surface-header">
+            <h2>Workflow Schritte</h2>
+            <span className="meta">{run?.steps?.length || 0} Schritte</span>
           </div>
-        )}
-      </section>
 
-      <section className="card fade-up">
-        <h2 style={{ marginTop: 0 }}>Signal vs Noise Review mit Nachweisen</h2>
-        {cases.length === 0 ? (
-          <p className="meta">Noch keine Cases vorhanden.</p>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Case</th>
-                  <th>Klassifikation</th>
-                  <th>Begruendung und Quellen</th>
-                  <th>Korrektur</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cases.map((item) => {
-                  const edit = editForCase(item);
-                  return (
-                    <tr key={item.case_id}>
-                      <td>
-                        <strong>{item.title}</strong>
-                        <div className="meta">{item.case_id}</div>
-                        <div className="meta">Keyword: {item.keyword}</div>
-                        <div className="meta">Confidence: {item.confidence}</div>
-                        <div className="meta">Validation: {item.validation_status}</div>
-                      </td>
-                      <td>
-                        <div>
-                          System: <span className={statusBadgeClass(item.is_signal ? "validated" : "rejected")}>{item.is_signal ? "Signal" : "Noise"}</span>
+          {!run || run.steps.length === 0 ? (
+            <div className="empty">Nach dem Start erscheinen hier alle Stages mit Live-Status.</div>
+          ) : (
+            <div className="timeline">
+              {run.steps.map((step) => {
+                const usedLlm = stepUsedCrewai(step);
+                const summaryText = stepCrewSummary(step);
+                const progress = stepProgressInfo(step);
+                const isStreaming = stepIsStreaming(step);
+                const pct = progress?.progress && progress.progress.total > 0
+                  ? Math.round((progress.progress.classified / progress.progress.total) * 100)
+                  : null;
+                return (
+                  <div key={step.name} className={`step ${step.status}`}>
+                    <div className="step-head">
+                      <div className="step-name">{step.name.replace(/_/g, " ")}</div>
+                      <div className="step-pills">
+                        {isStreaming ? (
+                          <span className="pill warn streaming-pill" title="LLM streamt gerade Tokens">
+                            <span className="dot streaming-dot" />
+                            streaming
+                          </span>
+                        ) : null}
+                        {usedLlm === null ? null : (
+                          <span className={usedLlm ? "pill ok" : "pill warn"} title={usedLlm ? "LLM hat diesen Schritt verarbeitet" : "Heuristik-Fallback verwendet"}>
+                            {usedLlm ? "LLM" : "Fallback"}
+                          </span>
+                        )}
+                        <span className={statusPillClass(step.status)}>{step.status}</span>
+                      </div>
+                    </div>
+                    <div className="step-meta">
+                      {formatTime(step.started_at)} → {formatTime(step.finished_at)}
+                    </div>
+
+                    {progress ? (
+                      <div style={{ marginTop: "0.55rem" }}>
+                        {progress.progress ? (
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--ink-soft)" }}>
+                              <span>Klassifiziert</span>
+                              <span>{progress.progress.classified} / {progress.progress.total}{pct !== null ? ` · ${pct}%` : ""}</span>
+                            </div>
+                            <div style={{ height: 4, background: "var(--surface-muted)", borderRadius: 999, overflow: "hidden", marginTop: 4 }}>
+                              <div style={{ height: "100%", width: `${pct ?? 0}%`, background: "var(--accent)", transition: "width 300ms ease" }} />
+                            </div>
+                          </div>
+                        ) : null}
+                        {(progress.llm_classified !== undefined || progress.heuristic_classified !== undefined) ? (
+                          <div style={{ marginTop: "0.4rem", display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                            {progress.llm_classified !== undefined ? (
+                              <span className="pill ok" title="durch LLM klassifiziert">LLM · {progress.llm_classified}</span>
+                            ) : null}
+                            {progress.heuristic_classified !== undefined && progress.heuristic_classified > 0 ? (
+                              <span className="pill warn" title="Heuristik-Fallback verwendet">Heuristik · {progress.heuristic_classified}</span>
+                            ) : null}
+                            {progress.signal_count !== undefined ? (
+                              <span className="pill neutral">Signale · {progress.signal_count}</span>
+                            ) : null}
+                            {progress.noise_count !== undefined ? (
+                              <span className="pill neutral">Noise · {progress.noise_count}</span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {summaryText ? (
+                      <div className={`step-summary${isStreaming ? " step-summary-streaming" : ""}`}>
+                        {summaryText}
+                      </div>
+                    ) : null}
+                    <details className="step-detail">
+                      <summary>Rohdetails</summary>
+                      <pre>{JSON.stringify(step.detail, null, 2)}</pre>
+                    </details>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Cases */}
+        <section className="surface">
+          <div className="surface-header">
+            <h2>Signal / Noise Review</h2>
+            <span className="meta">{cases.length} Cases</span>
+          </div>
+
+          {cases.length === 0 ? (
+            <div className="empty">Noch keine Cases vorhanden.</div>
+          ) : (
+            <div className="case-grid">
+              {cases.map((item) => {
+                const edit = editForCase(item);
+                return (
+                  <article key={item.case_id} className="case">
+                    <div className="case-head">
+                      <div>
+                        <div className="case-title">{item.title}</div>
+                        <div className="case-meta">
+                          <span>Keyword: {item.keyword}</span>
+                          <span>Confidence: {Math.round(item.confidence * 100)}%</span>
+                          <span>Ansoff L{item.ansoff_level}</span>
+                          <span className="kbd">{item.case_id}</span>
                         </div>
-                        <p style={{ marginBottom: "0.4rem" }}>{item.rationale}</p>
-                        <div className="meta">Expert: {item.expert_comment || "-"}</div>
-                      </td>
-                      <td>
+                      </div>
+                      <div className="case-pills">
+                        <span className={item.is_signal ? "pill ok" : "pill neutral"}>
+                          {item.is_signal ? "Signal" : "Noise"}
+                        </span>
+                        <span className={statusPillClass(item.validation_status)}>{item.validation_status}</span>
+                      </div>
+                    </div>
+
+                    <p className="case-rationale">{item.rationale}</p>
+                    {item.expert_comment ? (
+                      <p className="meta" style={{ marginTop: "0.4rem" }}>Expert: {item.expert_comment}</p>
+                    ) : null}
+
+                    <div className="case-body">
+                      <div>
+                        <div className="meta" style={{ marginBottom: "0.4rem", fontWeight: 600 }}>Quellen</div>
                         <ul className="source-list">
                           {item.sources.map((source, index) => (
                             <li key={`${item.case_id}_${index}`}>
                               <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
-                              <div className="meta">{source.snippet}</div>
-                              <div className="meta">
-                                Trust: {source.trust_score} | Published: {source.published_at || "-"}
+                              <div className="source-meta">{source.snippet}</div>
+                              <div className="source-meta">
+                                Trust {source.trust_score} · {source.published_at || "—"}
                               </div>
                             </li>
                           ))}
                         </ul>
-                      </td>
-                      <td>
+                      </div>
+
+                      <div className="review-form">
+                        <div className="meta" style={{ marginBottom: "0.4rem", fontWeight: 600 }}>Korrektur</div>
                         <label>
-                          Zielklassifikation
+                          Klassifikation
                           <select
                             value={edit.is_signal ? "signal" : "noise"}
                             onChange={(event) =>
@@ -394,7 +673,7 @@ export default function HomePage() {
                           />
                         </label>
                         <label>
-                          Korrigierter Titel (optional)
+                          Titel überschreiben (optional)
                           <input
                             value={edit.corrected_title}
                             onChange={(event) =>
@@ -403,7 +682,7 @@ export default function HomePage() {
                           />
                         </label>
                         <label>
-                          Korrigierte Begruendung (optional)
+                          Begründung überschreiben (optional)
                           <textarea
                             rows={2}
                             value={edit.corrected_rationale}
@@ -412,18 +691,20 @@ export default function HomePage() {
                             }
                           />
                         </label>
-                        <button type="button" onClick={() => void submitCaseReview(item)}>
-                          Korrektur speichern
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </main>
+                        <div className="btn-row">
+                          <button className="primary" type="button" onClick={() => void submitCaseReview(item)}>
+                            Speichern
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </main>
+    </>
   );
 }

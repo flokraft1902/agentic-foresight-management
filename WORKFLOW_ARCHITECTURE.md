@@ -1,4 +1,7 @@
-# CrewAI Foresight Workflow - Architektur & Datenfluss
+# CrewAI Foresight Workflow — Architektur & Datenfluss
+
+Aktualisiert nach Umstellung auf RSS-basiertes Scanning, LLM-Klassifikation,
+Streaming-Summaries und asynchronem Run mit Polling.
 
 ## System-Übersicht
 
@@ -9,51 +12,53 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Frontend → Backend Interaktionen
+## Frontend ↔ Backend Interaktionen
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║                      WORKFLOW CONSOLE FRONTEND                            ║
-║                    (Next.js, Port 3001, Browser)                          ║
+║                    (Next.js, Port 3000, Browser)                          ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 
    ┌──────────────────────────┐
-   │  Suchoberbegriffe Editor │ ─────┬──────► PUT /api/config/search-terms
-   │  (Editierbar + Speicher) │      │
+   │  LLM-Status-Pill         │ ◄─────────── GET /api/llm-health
+   │  (Live "LLM live" /      │
+   │   "Fallback")            │
+   └──────────────────────────┘
+
+   ┌──────────────────────────┐
+   │  Konfiguration           │ ─────┬──────► PUT /api/config/search-terms
+   │  Begriffe + Fokus        │      │
+   └──────────────────────────┘      │  JSON: { search_terms: [] }
+                                      │
+   ┌──────────────────────────┐      │
+   │  Workflow starten        │ ─────┤──────► POST /api/workflow/start
+   │  (returnt sofort)        │      │  JSON: { search_terms, focus }
    └──────────────────────────┘      │
-                                      │  JSON: { search_terms: [] }
-   ┌──────────────────────────┐      │
-   │  Fokus & Workflow Start  │ ─────┤──────► POST /api/workflow/start
-   │  (Button + Formular)     │      │
-   └──────────────────────────┘      │  JSON: { search_terms, focus }
-                 ▲                   │
-                 │                   ▼
-   ┌────────────────────────────────────────────────────────┐
-   │         NEXT.JS API PROXY LAYER                        │
-   │  (Forwarding an CrewAI Backend auf Port 8000)         │
-   └────────────────────────────────────────────────────────┘
-                 ▲                   │
-                 │                   ▼
-   ┌──────────────────────────┐      │
-   │  Run-Status & Timeline   │ ◄────┤──────── GET /api/workflow/{run_id}
-   │  (Live-Update je Schritt)│      │
-   └──────────────────────────┘      │  Response: { run, cases, steps }
                                       │
    ┌──────────────────────────┐      │
-   │  Signal/Noise Cases Table│      │
-   │  + Quellen sichtbar      │ ─────┤──────► PUT /api/cases/{case_id}/review
-   │  + Korrektur-Editor      │      │
-   └──────────────────────────┘      │  JSON: { is_signal, comment, ... }
+   │  Run-Übersicht (KPIs)    │ ◄────┤──────── GET /api/workflow/{run_id}
+   │  Timeline (live)         │      │      (Poll alle 1.5s)
+   │  Streaming-Cursor        │      │
+   └──────────────────────────┘      │
                                       │
    ┌──────────────────────────┐      │
-   │  Evidence & Sources      │ ◄────┘
-   │  (Links, Trust Score)    │
+   │  Run History             │ ◄────┤──────── GET /api/workflow?limit=15
+   │  (klickbare Karten)      │      │
+   │                          │ ─────┘──────► DELETE /api/workflow[?force=true]
+   └──────────────────────────┘
+                                      
+   ┌──────────────────────────┐
+   │  Signal/Noise Cases      │ ──────────► PUT /api/cases/{case_id}/review
+   │  (mit Quellen + Review)  │       JSON: { is_signal, comment, ... }
    └──────────────────────────┘
 ```
 
+Alle UI-Calls gehen über Next.js Server-Routes als Proxy zu FastAPI (Port 8000).
+
 ---
 
-## CrewAI Backend - Workflow Pipeline
+## CrewAI Backend — Workflow Pipeline
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -61,92 +66,131 @@
 ║                   (Python/FastAPI, Port 8000, Uvicorn)                    ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 
-                            ┌─────────────────┐
-                            │  Workflow Start │
-                            │  (run_workflow) │
-                            └────────┬────────┘
-                                     │
-                    ┌────────────────┴────────────────┐
-                    │                                 │
-        Resolve Search Terms              Resolve Focus Strategy
-           (Defaults/User)               (Strategic Direction)
-                    │                                 │
-                    └────────────────┬────────────────┘
-                                     ▼
+         POST /workflow/start  ───►  prepare_run()  ──►  threading.Thread
+                                          │                    │
+                                          │ returns run_id     │ runs async
+                                          ▼                    ▼
+                                   ┌─────────────┐      execute_run(run)
+                                   │ Client polls│             │
+                                   │ /workflow/  │             │
+                                   │  {run_id}   │             │
+                                   └─────────────┘             │
+                                                               ▼
         ┌────────────────────────────────────────────────────────┐
-        │          STEP 1: SCANNING AGENT                        │
+        │          STEP 1: SCANNING                              │
         │  ┌────────────────────────────────────────────────┐   │
-        │  │ • Iterate über Search Terms                    │   │
-        │  │ • Generate Mock Quellen (IEA, EC, AGORA, etc) │   │
-        │  │ • Extend mit Title, URL, Trust Score          │   │
-        │  │ • CrewAI Summary (falls LLM verfügbar)        │   │
+        │  │ • search_sources(terms)                        │   │
+        │  │   - Live-Fetch von 4 RSS-Feeds (httpx +        │   │
+        │  │     feedparser): Clean Energy Wire, Energy     │   │
+        │  │     Monitor, Climate Change News, REW          │   │
+        │  │   - Filter: Suchbegriff im Title/Summary       │   │
+        │  │   - Sort: published_at desc, cap 4/Term        │   │
+        │  │   - Fallback: synthetische Items wenn 0 hits   │   │
+        │  │ • summarize_stage() streamt Markdown-Summary   │   │
         │  │                                                │   │
-        │  │ Output: List[SourceItem] (2 pro Term)        │   │
+        │  │ Output: List[{keyword, source: SourceItem}]    │   │
         │  └────────────────────────────────────────────────┘   │
-        │  Status: "scanning" → "done"                          │
-        │  Timeline Step gespeichert in data/state.json         │
+        │  Status: scanning → done                              │
         └────────────────┬─────────────────────────────────────┘
                          ▼
         ┌────────────────────────────────────────────────────────┐
-        │          STEP 2: ASSESSMENT AGENT                      │
+        │          STEP 2: ASSESSMENT                            │
         │  ┌────────────────────────────────────────────────┐   │
-        │  │ • Iterate über alle Scanning-Output Quellen    │   │
-        │  │ • Klassifikation: is_signal (confidence ≥ 0.62)│   │
-        │  │ • Generate SignalCase pro Quelle               │   │
-        │  │ • Rationale & Ansoff-Level setzen             │   │
-        │  │ • CrewAI: Filter Signal vs Noise               │   │
+        │  │ FOR jeden Case:                                │   │
+        │  │   classify_case(term, title, snippet, focus)   │   │
+        │  │     → LLM JSON-Prompt:                         │   │
+        │  │        {is_signal, confidence, ansoff_level,   │   │
+        │  │         rationale}                             │   │
+        │  │     → Fallback: SHA-Heuristik bei Timeout/     │   │
+        │  │        Parse-Error/Quota                       │   │
         │  │                                                │   │
-        │  │ Output: List[SignalCase]                      │   │
-        │  │   - is_signal: bool                           │   │
-        │  │   - confidence: 0.0-1.0                       │   │
-        │  │   - sources: [SourceItem]                     │   │
-        │  │   - validation_status: "pending"              │   │
+        │  │ Live-Progress: alle 3 Cases upsert_run() mit   │   │
+        │  │   progress.classified, llm_classified,         │   │
+        │  │   heuristic_classified                         │   │
+        │  │                                                │   │
+        │  │ Output: List[SignalCase]                       │   │
+        │  │   - is_signal, confidence, ansoff_level        │   │
+        │  │   - rationale (vom LLM oder Heuristik)         │   │
+        │  │   - validation_status: pending                 │   │
         │  └────────────────────────────────────────────────┘   │
-        │  Status: "assessment" → "done"                        │
-        │  Cases jetzt persistiert: data/state.json             │
+        │  Status: assessment → done                            │
         └────────────────┬─────────────────────────────────────┘
                          ▼
         ┌────────────────────────────────────────────────────────┐
         │       STEP 3: ENERGY EXPERT VALIDATION                 │
         │  ┌────────────────────────────────────────────────┐   │
-        │  │ • Filter: is_signal ∧ confidence ≥ 0.72       │   │
-        │  │ • Set validation_status: "validated"          │   │
-        │  │ • Add expert_comment (Strategic Relevance)    │   │
-        │  │ • Ansoff-Level Context (Produkt/Markt/Tech)  │   │
-        │  │ • CrewAI: Energiewirtschaftliche Bewertung    │   │
+        │  │ Schwellwert-basiert (noch heuristisch):        │   │
+        │  │   IF is_signal AND confidence >= 0.72          │   │
+        │  │     → validated                                │   │
+        │  │   ELIF is_signal                               │   │
+        │  │     → pending  (für HITL-Review vorgesehen)    │   │
+        │  │   ELSE                                         │   │
+        │  │     → rejected                                 │   │
         │  │                                                │   │
-        │  │ Output: Updated SignalCases                   │   │
-        │  │   - validation_status: "validated"|"pending"  │   │
-        │  │   - expert_comment: str                       │   │
-        │  │   - ansoff_level: 1-5                         │   │
+        │  │ summarize_stage() streamt Expert-Kommentar     │   │
         │  └────────────────────────────────────────────────┘   │
-        │  Status: "energy_expert_validation" → "done"          │
-        │  Counts stored in summary                             │
+        │  Status: energy_expert_validation → done              │
         └────────────────┬─────────────────────────────────────┘
                          ▼
         ┌────────────────────────────────────────────────────────┐
-        │      STEP 4: SCENARIO INTEGRATION AGENT                │
+        │      STEP 4: SCENARIO INTEGRATION                      │
         │  ┌────────────────────────────────────────────────┐   │
-        │  │ • Filter: validation_status == "validated"     │   │
-        │  │ • Generate Strategic Alerts (Top 10)           │   │
-        │  │ • Alert = {case_id, title, keyword, level}    │   │
-        │  │ • CrewAI: Scenario Szenario-Implikationen      │   │
-        │  │ • Synthesis zu Policy/Security/Sustainability │   │
+        │  │ • Filter: validation_status == validated       │   │
+        │  │ • Top 10 als strategic_alerts                  │   │
+        │  │ • summarize_stage() streamt Szenario-Synthese  │   │
         │  │                                                │   │
-        │  │ Output: Strategic Alert Summary                │   │
-        │  │   - alert_count: int                          │   │
-        │  │   - alerts: List[dict]                        │   │
+        │  │ Output: { alert_count, alerts[] }              │   │
         │  └────────────────────────────────────────────────┘   │
-        │  Status: "scenario_integration" → "done"              │
-        │  Final summary stored in run.summary                  │
+        │  Status: scenario_integration → done                  │
         └────────────────┬─────────────────────────────────────┘
                          ▼
                     ┌──────────────┐
-                    │   Workflow   │
-                    │  Completed   │
-                    │   & Stored   │
-                    │ (state.json) │
+                    │ run.status = │
+                    │ "completed"  │
+                    │ → state.json │
                     └──────────────┘
+```
+
+---
+
+## Streaming der LLM-Summaries
+
+```
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                     LLM TOKEN STREAMING                                   ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+summarize_stage(stage_name, objective, payload, on_chunk=emitter)
+              │
+              ▼
+   litellm.completion(model, stream=True, ...)
+              │
+              ▼
+   ┌──────────────────────────────┐
+   │ chunk-by-chunk:              │
+   │  delta = chunk.choices[0]    │
+   │          .delta.content      │
+   │  accumulated += delta        │
+   │                              │
+   │  if (now - last_emit) > 0.5s │
+   │    emitter(accumulated)      │
+   └──────────────┬───────────────┘
+                  │
+                  ▼  (callback in workflow.py)
+   ┌──────────────────────────────┐
+   │ step.detail.crewai = {       │
+   │   enabled: true,             │
+   │   summary: <partial>,        │
+   │   streaming: true            │
+   │ }                            │
+   │ upsert_run(run)              │
+   └──────────────┬───────────────┘
+                  │ writes to state.json
+                  ▼
+   UI Polling sieht im nächsten Tick:
+   • Streaming-Pille + pulsierender Dot
+   • Step-Summary mit blinkendem ▍ am Ende
+   • Text wächst sichtbar mit
 ```
 
 ---
@@ -154,230 +198,100 @@
 ## Datenfluss pro Schritt
 
 ```
-╔════════════════════════════════════════════════════════════════════════╗
-║                     DATENFLUSS IM DETAIL                               ║
-╚════════════════════════════════════════════════════════════════════════╝
-
 SCANNING STEP
 ─────────────
-Input:  [ search_terms: ['hydrogen import', 'storage battery', ...],
-          focus: 'Energy transition weak signals' ]
+Input:  search_terms[], focus
 
 Processing:
-  FOR each term in search_terms:
-    → Generate 2 Mock Sources
-       • IEA, EC, AGORA, CLEANENERGYWIRE, BMWK, or AGORA URL
-       • Published date (rolling window last 21 days)
-       • Trust Score: 0.45-0.95
-       • Snippet: Generic energy transition text
+  Fetch alle 4 RSS-Feeds parallel (httpx, 8s Timeout, User-Agent gesetzt)
+  Parse via feedparser, strip HTML aus title/summary
+  FOR jeden search_term:
+    matches = [entry for entry in feeds if term im title+summary]
+    sort by published desc, take top 4
+    dedup über (term, url)
+  
+  Wenn 0 Hits: _fallback_sources(terms) — synthetische Items mit
+               "[fallback]"-Snippet, deterministischer Trust Score
 
 Output: SourceItem[]
-  [
-    {
-      "keyword": "hydrogen import",
-      "title": "Hydrogen Import Update 1",
-      "url": "https://www.iea.org/news/hydrogen-import-1",
-      "snippet": "New development for hydrogen import...",
-      "published_at": "2026-06-10",
-      "trust_score": 0.72
-    },
-    ...
-  ]
-
-Storage: 
-  ✓ Persist in data/state.json (cases array)
-  ✓ Update run.steps[0] with detail
+  {
+    "keyword": "hydrogen import germany",
+    "title": "EU backs Egypt's grid expansion ...",
+    "url": "https://www.energymonitor.ai/news/...",
+    "snippet": "The European Union is providing financing ...",
+    "published_at": "2026-06-16",
+    "trust_score": 0.78
+  }
 
 
 ASSESSMENT STEP
 ───────────────
-Input:  Scanned SourceItems[]
+Input: scanned SourceItems[]
 
 Processing:
-  FOR each source:
-    confidence = base(0.42) 
-               + term_keyword_matches(0-0.49) 
-               + source_trust_score(0-0.20)
-    is_signal = (confidence >= 0.62)
-    
-    Create SignalCase:
-      - case_id: uuid
-      - is_signal: bool
-      - confidence: 0.0-1.0
-      - ansoff_level: 1-5 (based on keyword)
-      - rationale: "Structural impact detected..."
-      - sources: [original SourceItem]
-      - validation_status: "pending"
+  FOR jeden Case:
+    heuristic_fallback = Classification(
+      is_signal = (_confidence(term, src) >= 0.62),
+      confidence = _confidence(term, src),
+      ansoff_level = _ansoff_level(term),
+      rationale = "Heuristic baseline: ...",
+      source = "heuristic"
+    )
 
-Output: SignalCase[]
-  [
-    {
-      "case_id": "case_abc123",
-      "keyword": "hydrogen import",
-      "is_signal": true,
-      "confidence": 0.73,
-      "ansoff_level": 4,
-      "validation_status": "pending",
-      "sources": [...]
-    },
-    ...
-  ]
+    classification = classify_case(term, title, snippet, focus, ...)
+      → LLM Prompt mit Output-Schema:
+        '{"is_signal": bool, "confidence": 0-1,
+          "ansoff_level": 1-4, "rationale": str}'
+      → Robust: extract JSON via regex, fallback bei Parse/Auth/Timeout
 
-Storage:
-  ✓ Persist in data/state.json (cases)
-  ✓ Update run.steps[1] with counts
+    case = SignalCase(
+      case_id, run_id, keyword, title,
+      rationale = classification.rationale,
+      confidence = classification.confidence,
+      is_signal = classification.is_signal,
+      ansoff_level = classification.ansoff_level,
+      validation_status = "pending",
+      sources = [source]
+    )
+
+  Alle 3 Cases: upsert_run(run) mit progress, llm_classified, heuristic_classified
 
 
 EXPERT VALIDATION STEP
 ──────────────────────
-Input:  SignalCase[] from Assessment
+Input: SignalCase[]
 
 Processing:
-  FOR each case WHERE is_signal:
-    IF confidence >= 0.72:
+  FOR each case:
+    IF is_signal AND confidence >= 0.72:
       validation_status = "validated"
-      expert_comment = "Consistent with strategic relevance..."
-    ELSE:
+      expert_comment = "Consistent with strategic relevance ..."
+    ELIF is_signal:
       validation_status = "pending"
-      expert_comment = "Potential signal, requires human review..."
-    
-    IF NOT is_signal:
+      expert_comment = "Potential signal, requires human review ..."
+    ELSE:
       validation_status = "rejected"
-      expert_comment = "Classified as noise..."
+      expert_comment = "Classified as noise ..."
 
-Output: Updated SignalCase[] with validation_status & expert_comment
+  summarize_stage streamt Markdown-Kommentar zum Step
 
-Storage:
-  ✓ Update cases in data/state.json
-  ✓ Update run.steps[2] with counts (validated/pending/rejected)
+  TODO (#3 HITL): wenn pending-Cases existieren, Workflow hier pausieren
+                  bis Human-Review erfolgt ist.
 
 
 SCENARIO INTEGRATION STEP
 ─────────────────────────
-Input:  SignalCase[] where validation_status == "validated"
+Input: SignalCase[] with validation_status == "validated"
 
 Processing:
-  Filter: Only validated signals
-  Generate Strategic Alerts:
-    - Take top 10 validated cases
-    - Extract: case_id, title, keyword, ansoff_level, confidence
-    - Headline impact on Policy/Security/Sustainability
-  
-  Synthesis:
-    - Create summary statement
-    - Alert count
+  strategic_alerts = top 10 validated cases
+    [{case_id, title, keyword, ansoff_level, confidence, main_source}, ...]
 
-Output: Strategic Alert Summary
-  {
-    "alert_count": 5,
-    "alerts": [
-      {
-        "case_id": "case_xyz",
-        "title": "Hydrogen Import Update",
-        "keyword": "hydrogen import",
-        "ansoff_level": 4,
-        "confidence": 0.75,
-        "main_source": "https://..."
-      },
-      ...
-    ]
-  }
+  summarize_stage streamt Strategic Alert (Markdown)
 
-Storage:
-  ✓ Update run.summary with alert_count
-  ✓ Update run.steps[3] with alerts[]
-  ✓ Final run.status = "completed"
-```
-
----
-
-## Frontend Human-in-the-Loop Review
-
-```
-╔════════════════════════════════════════════════════════════════════════╗
-║                    FRONTEND REVIEW & CORRECTION                        ║
-╚════════════════════════════════════════════════════════════════════════╝
-
-USER DASHBOARD VIEW
-───────────────────
-┌─────────────────────────────────────────────────────────────┐
-│  Suchbegriffe: [hydrogen import, storage battery, ...]     │
-│  [Speichern Button] ──► PUT /api/config/search-terms       │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│  Fokus: "Energy transition weak signals..."                │
-│  [Workflow Starten] ──► POST /api/workflow/start           │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│  RUN TIMELINE (Live Updated)                                │
-│  ┌─ Scanning        ✓ Done (2026-06-16 10:15:32Z)          │
-│  │   Detail: focus=..., hits=24, sample_sources=5          │
-│  │   CrewAI: {enabled: true, summary: "..."}               │
-│  │                                                          │
-│  ├─ Assessment      ✓ Done (2026-06-16 10:15:45Z)          │
-│  │   Detail: candidate_count=24, signals=8, noise=16       │
-│  │   CrewAI: {enabled: true, summary: "..."}               │
-│  │                                                          │
-│  ├─ Energy Expert   ✓ Done (2026-06-16 10:16:02Z)          │
-│  │   Detail: validated=5, pending=3, rejected=16           │
-│  │   CrewAI: {enabled: true, summary: "..."}               │
-│  │                                                          │
-│  └─ Scenario        ✓ Done (2026-06-16 10:16:15Z)          │
-│     Detail: alert_count=5, alerts=[...]                    │
-│     CrewAI: {enabled: true, summary: "..."}                │
-└─────────────────────────────────────────────────────────────┘
-
-
-SIGNAL vs NOISE REVIEW TABLE
-────────────────────────────
-┌───────┬──────────────┬─────────────┬──────────────────┬────────────┐
-│ Title │ Classification
-│ Quellen              │ Korrektur  │
-├───────┼──────────────┼─────────────┼──────────────────┼────────────┤
-│Hydro- │ System: Signal
-         │ Link 1 (Trust:0.72)
-     │ [Signal▼]  │
-│ gen   │ Confidence:0.73
-         │ Link 2 (Trust:0.68)
-     │ Kommentar: │
-│ Import│ Validation: pending
-         │ Published: 2026-06-10
-     │ [Speichern]│
-│...    │ Expert: "Potential..."
-     │            │ [Korrektur]│
-│       │           │            │            │
-├───────┼──────────────┼─────────────┼──────────────────┼────────────┤
-│Storage│ System: Noise │ Link 1
-     │ [Noise▼]   │
-│Battery│ Confidence:0.58│ Rationale: │ Kommentar: │
-│       │ Validation: rejected
-     │ "Weak evidence"
-  │ [Speichern]│
-│       │ Expert: "Rejected"
-     │ [Korrektur]│
-└───────┴──────────────┴─────────────┴──────────────────┴────────────┘
-
-USER ACTIONS (PUT /api/cases/{case_id}/review):
-───────────────────────────────────────────────
-1. Change is_signal: false → true
-   → validation_status auto-updates to "pending" (falls war "rejected")
-
-2. Add reviewer_comment: "Actually relevant after re-reading..."
-   → Comment stored & used for audit trail
-
-3. Correct title: "Old Title" → "New Title"
-   → Updated in case, persisted
-
-4. Correct rationale: "..." → "Better explanation"
-   → Updated in case, persisted
-
-5. Submit: [Speichern]
-   → PUT request sent
-   → Backend updates case
-   → Audit log entry created
-   → Frontend refreshes case
+Output: run.summary = {
+  cases_total, signals, noise, validated_signals, strategic_alerts
+}
 ```
 
 ---
@@ -385,82 +299,89 @@ USER ACTIONS (PUT /api/cases/{case_id}/review):
 ## Persistenz Layer
 
 ```
-╔════════════════════════════════════════════════════════════════════════╗
-║                      DATA STORAGE (JSON Files)                         ║
-╚════════════════════════════════════════════════════════════════════════╝
-
 data/state.json
 ───────────────
 {
-  "search_terms": ["hydrogen import", "storage battery", ...],
+  "search_terms": ["hydrogen import germany", ...],
+
   "runs": [
     {
-      "run_id": "run_20260616_101532_a1b2c3",
-      "created_at": "2026-06-16T10:15:32Z",
-      "updated_at": "2026-06-16T10:16:15Z",
-      "focus": "Energy transition weak signals",
+      "run_id": "run_20260617_101532_a1b2c3",
+      "created_at": "2026-06-17T10:15:32Z",
+      "updated_at": "2026-06-17T10:16:15Z",   // bei jedem upsert aktualisiert
+      "focus": "...",
       "search_terms": [...],
-      "status": "completed",
+      "status": "completed",                   // running | completed | failed
       "steps": [
         {
           "name": "scanning",
           "status": "done",
-          "started_at": "2026-06-16T10:15:32Z",
-          "finished_at": "2026-06-16T10:15:45Z",
+          "started_at": "...",
+          "finished_at": "...",
           "detail": {
             "focus": "...",
-            "hits": 24,
+            "hits": 12,
             "sample_sources": [...],
-            "crewai": { "enabled": true, "summary": "..." }
+            "crewai": {
+              "enabled": true,
+              "summary": "## Findings\n* ...",   // finaler Text
+              "streaming": false                 // true während Generation
+            }
           }
         },
-        { ... assessment step ... },
+        {
+          "name": "assessment",
+          "status": "done",
+          "detail": {
+            "candidate_count": 12,
+            "signal_count": 7,
+            "noise_count": 5,
+            "llm_classified": 11,                // wie viele via LLM klassifiziert
+            "heuristic_classified": 1,           // wie viele auf Fallback
+            "progress": { "classified": 12, "total": 12 },
+            "crewai": { ... }
+          }
+        },
         { ... expert step ... },
         { ... scenario step ... }
       ],
       "summary": {
-        "cases_total": 24,
-        "signals": 8,
-        "noise": 16,
-        "validated_signals": 5,
-        "strategic_alerts": 5
+        "cases_total": 12,
+        "signals": 7,
+        "noise": 5,
+        "validated_signals": 4,
+        "strategic_alerts": 4
       }
-    }
+    },
+    { ... weitere Runs ... }
   ],
+
   "cases": [
     {
       "case_id": "case_abc123",
-      "run_id": "run_20260616_101532_a1b2c3",
-      "keyword": "hydrogen import",
-      "title": "Hydrogen Import Update 1",
-      "rationale": "Structural impact on supply...",
-      "confidence": 0.73,
+      "run_id": "run_20260617_...",
+      "keyword": "hydrogen import germany",
+      "title": "...",
+      "rationale": "...",       // vom LLM oder vom Heuristik-Fallback
+      "confidence": 0.78,
       "is_signal": true,
-      "ansoff_level": 4,
+      "ansoff_level": 3,
       "validation_status": "validated",
-      "expert_comment": "Consistent with strategic relevance",
-      "reviewer_comment": "Approved after review",
-      "reviewed_by": "human.reviewer",
-      "reviewed_at": "2026-06-16T10:18:00Z",
-      "sources": [
-        {
-          "title": "IEA Hydrogen Report",
-          "url": "https://www.iea.org/news/hydrogen-1",
-          "snippet": "New developments for hydrogen import...",
-          "published_at": "2026-06-10",
-          "trust_score": 0.72
-        }
-      ]
-    },
-    { ... more cases ... }
+      "expert_comment": "...",
+      "reviewer_comment": "...",
+      "reviewed_by": "frontend.reviewer",
+      "reviewed_at": "...",
+      "sources": [{ title, url, snippet, published_at, trust_score }]
+    }
   ]
 }
 
-Updates:
-  • Search terms: PUT /api/config/search-terms
-  • New run: POST /api/workflow/start
-  • Case review: PUT /api/cases/{case_id}/review
-  • All changes immediately persisted to disk
+Schreibvorgänge:
+  • Alle 3 klassifizierten Cases während Assessment
+  • Alle 0.5s während LLM-Streaming (gedrosselt)
+  • Bei jedem Step-Anfang/-Ende
+  • Bei jedem Case-Review (PUT /cases/{id}/review)
+  • Beim Reset (DELETE /workflow)
 ```
 
 ---
@@ -468,192 +389,21 @@ Updates:
 ## API Endpoints Summary
 
 ```
-╔════════════════════════════════════════════════════════════════════════╗
-║                      FASTAPI BACKEND ROUTES                            ║
-║                    (CrewAI, Port 8000, Uvicorn)                       ║
-╚════════════════════════════════════════════════════════════════════════╝
-
 GET /health
-────────────
-Response: { "ok": true, "service": "crewai-foresight-backend", ... }
-Purpose:  Health check
+GET /llm/health                  Liveness-Probe mit echtem LLM-Mini-Call
 
+GET  /config/search-terms        aktuelle Suchbegriffe
+PUT  /config/search-terms        überschreiben
 
-GET /config/search-terms
-─────────────────────────
-Response: { "ok": true, "search_terms": [...] }
-Purpose:  Retrieve current search term configuration
+POST   /workflow/start           Run starten, returnt sofort (run_id)
+GET    /workflow                 Run-Liste (limit Query, ohne steps-Detail)
+GET    /workflow/{run_id}        vollständiger Run inkl. steps + cases
+DELETE /workflow[?force=true]    Reset; 409 wenn aktive Runs, force=true
+                                  überschreibt das
 
-
-PUT /config/search-terms
-────────────────────────
-Request:  { "search_terms": ["term1", "term2", ...] }
-Response: { "ok": true, "search_terms": [...] }
-Purpose:  Update & persist search terms
-
-
-POST /workflow/start
-────────────────────
-Request:  {
-            "search_terms": ["..."], (optional, uses defaults if omitted)
-            "focus": "..."            (optional, uses default if omitted)
-          }
-Response: {
-            "ok": true,
-            "run": { run_id, status, steps, summary, ... },
-            "cases": [ SignalCase[], ... ]
-          }
-Purpose:  Trigger full workflow pipeline (Scanning → Assessment → Expert → Scenario)
-Time:     ~3-5 seconds (depends on LLM availability)
-
-
-GET /workflow/{run_id}
-──────────────────────
-Response: {
-            "ok": true,
-            "run": { run_id, status, steps, summary, ... },
-            "cases": [ SignalCase[], ... ]
-          }
-Purpose:  Fetch run result & cases (used for live updates)
-
-
-GET /cases
-──────────
-Query:    ?run_id=run_20260616_101532_a1b2c3 (optional)
-Response: { "ok": true, "cases": [ SignalCase[], ... ] }
-Purpose:  List all cases (optionally filtered by run_id)
-
-
-GET /cases/{case_id}
-────────────────────
-Response: { "ok": true, "case": SignalCase }
-Purpose:  Fetch single case details
-
-
-PUT /cases/{case_id}/review
-───────────────────────────
-Request:  {
-            "is_signal": true|false,
-            "comment": "...",
-            "corrected_title": "...",     (optional)
-            "corrected_rationale": "...", (optional)
-            "reviewer": "human.reviewer"
-          }
-Response: { "ok": true, "case": SignalCase (updated) }
-Purpose:  Apply human review decision & corrections
-```
-
----
-
-## Workflow Zustandsdiagram
-
-```
-                         START
-                           │
-                           ▼
-                    ┌──────────────┐
-                    │   Frontend   │
-                    │  User Input  │
-                    └──────┬───────┘
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-          ▼                ▼                ▼
-    ┌──────────┐    ┌──────────┐    ┌──────────┐
-    │ Edit     │    │ Set      │    │ Press    │
-    │ Search   │    │ Focus    │    │ Start    │
-    │ Terms    │    │ Strategy │    │ Workflow │
-    └────┬─────┘    └────┬─────┘    └────┬─────┘
-         │               │               │
-         │               └───────┬───────┘
-         │                       │
-         ▼                       ▼
-    ┌─────────────────────────────────┐
-    │  PUT /api/config/search-terms   │
-    │  (optional, save for next time) │
-    └──────────────────┬──────────────┘
-                       │
-                       ▼
-             ┌──────────────────────┐
-             │ POST /api/workflow   │
-             │ /start (non-blocking)│
-             └─────────┬────────────┘
-                       │
-         ┌─────────────┴──────────────┐
-         │                            │
-         ▼                            ▼
-    [Return           [Start Async Process]
-     run_id]                   │
-         │                     ├─► Step 1: Scanning
-         │                     │   └─ sources[]
-         │                     │
-         │                     ├─► Step 2: Assessment
-         │                     │   └─ cases[] (is_signal/confidence)
-         │                     │
-         │                     ├─► Step 3: Expert Validation
-         │                     │   └─ cases[] (validation_status)
-         │                     │
-         │                     └─► Step 4: Scenario Integration
-         │                         └─ strategic_alerts[]
-         │                         └─ run.status = "completed"
-         │
-         ▼
-    ┌─────────────────────────────┐
-    │ GET /api/workflow/{run_id}  │ ◄─ Poll every 1-2 sec
-    │ (Frontend polls for updates)│
-    └──────────────┬──────────────┘
-                   │
-                   ▼
-         ┌──────────────────────┐
-         │ Display Timeline &   │
-         │ Cases Table (Live)   │
-         └──────────┬───────────┘
-                    │
-                    ▼
-         ┌──────────────────────────┐
-         │ User Reviews Cases       │
-         │ (Signal/Noise + Sources) │
-         └──────────┬───────────────┘
-                    │
-         ┌──────────┴──────────────┐
-         │                         │
-         ▼                         ▼
-    [Change is_signal]      [Add Comment]
-    [Correct Title]         [Send Review]
-    [Correct Rationale]            │
-         │                         │
-         └──────────┬──────────────┘
-                    │
-                    ▼
-         ┌──────────────────────────────┐
-         │ PUT /api/cases/{case_id}/    │
-         │ review                       │
-         └──────────┬───────────────────┘
-                    │
-                    ▼
-         ┌──────────────────────────────┐
-         │ Backend Updates Case         │
-         │ • Validate input             │
-         │ • Update case status         │
-         │ • Log audit event            │
-         │ • Persist to state.json      │
-         └──────────┬───────────────────┘
-                    │
-                    ▼
-         ┌──────────────────────────────┐
-         │ Frontend Refreshes Case      │
-         │ (Show updated state)         │
-         └──────────┬───────────────────┘
-                    │
-        ┌───────────┴─────────────┐
-        │                         │
-        ▼                         ▼
-    [More Cases?]           [Export / Done]
-    [Review Next]
-        │                         │
-        └──────────┬──────────────┘
-                   │
-                  END
+GET /cases?run_id=...            Cases auflisten
+GET /cases/{case_id}             einzelner Case
+PUT /cases/{case_id}/review      Human-Review speichern
 ```
 
 ---
@@ -661,118 +411,104 @@ Purpose:  Apply human review decision & corrections
 ## Fehlerbehandlung & Fallbacks
 
 ```
-╔════════════════════════════════════════════════════════════════════════╗
-║                     ROBUSTNESS & FALLBACK MODES                        ║
-╚════════════════════════════════════════════════════════════════════════╝
+LLM_API_KEY fehlt / LLM nicht erreichbar / Quota überschritten
+─────────────────────────────────────────────────────────────
+• Scanning: läuft (RSS unabhängig vom LLM)
+• Assessment: jeder Case fällt auf SHA-Heuristik zurück
+              llm_classified=0, heuristic_classified=alle
+• Expert: läuft (Schwellwert ist heuristisch)
+• Scenario: läuft
+• summarize_stage: returnt CrewSummary(used_crewai=False)
+→ Pipeline läuft komplett durch, UI zeigt "LLM Fallback"-Pille pro Step
 
-CREWAI LLM MISSING (no OPENAI_API_KEY set)
-──────────────────────────────────────────
-• Scanning: Uses deterministic mock sources → ✓ Works
-• Assessment: Heuristic confidence calculation → ✓ Works
-• Expert: Static validation logic → ✓ Works
-• Scenario: Alerts via filtering → ✓ Works
-• CrewAI summary: Skipped, logged as "Fallback mode"
-→ System fully functional without LLM
-
-
-INVALID SEARCH TERMS
-───────────────────
-• Non-empty validation on save
-• Empty terms rejected: HTTP 400
-• Frontend prevents submission
-
-
-CASE NOT FOUND
-──────────────
-• GET /cases/{invalid_id} → HTTP 404
-• PUT /cases/{invalid_id}/review → HTTP 404
-
-
-MALFORMED JSON
-──────────────
-• POST /api/workflow/start with bad JSON → HTTP 400
-• Pydantic validation error → descriptive message
-
-
-CONCURRENT REQUESTS
-────────────────────
-• State file is overwritten (last-write-wins)
-• Acceptable for prototype
-• Production: Add database + transactional locking
-
-
-FRONTEND NETWORK ERROR
+Alle RSS-Feeds offline
 ──────────────────────
-• Backend unreachable → Show error message
-• User can retry manually
-• No automatic recovery yet
+• search_sources liefert 0 Live-Hits
+• _fallback_sources erzeugt deterministische Items aus _FALLBACK_BASE_URLS
+• Backend loggt "[sources] no live RSS hits — using synthetic fallback"
+• UI sieht reguläre Cases, Snippets beginnen mit "[fallback]"
+
+LLM-Streaming bricht mit Exception ab
+─────────────────────────────────────
+• Bisher akkumulierte Tokens werden als finaler Text zurückgegeben
+• summarize_stage gibt CrewSummary(used_crewai=True, text=teil) zurück
+• Wenn 0 Tokens: used_crewai=False, Fallback-Text
+
+Run abgestürzt / uvicorn restart während Run
+────────────────────────────────────────────
+• Run bleibt mit status="running" in state.json
+• Beim nächsten DELETE /workflow blockiert 409
+• User kann ?force=true setzen (UI bietet das automatisch nach 409 an)
 ```
 
 ---
 
-## Erweiterungen (Future Roadmap)
+## Live-Updates: Polling-Sequenz
 
 ```
-╔════════════════════════════════════════════════════════════════════════╗
-║                           ROADMAP                                      ║
-╚════════════════════════════════════════════════════════════════════════╝
+T=0.0s   POST /workflow/start
+         → Backend: prepare_run() schreibt Run mit status=running
+         → Backend: Thread startet execute_run()
+         → Response: { run, cases: [] }  (sofort, ~50ms)
 
-KURZ (Next Sprint)
-──────────────────
-□ Real Web Search Integration (Tavily / SerpAPI)
-  └─ Replace deterministic mock sources
-
-□ WebSocket Live Updates
-  └─ Replace polling in frontend
-
-□ Database Migration (PostgreSQL / SQLite)
-  └─ Replace JSON file persistence
-
-□ Bulk Case Operations
-  └─ Mark multiple as reviewed
-
-□ Export to CSV / PDF
-  └─ Strategic alert report
-
-
-MITTEL (Q3 2026)
-────────────────
-□ n8n Workflow Integration
-  └─ Trigger via HTTP node, receive webhook callback
-
-□ Email / Slack Notifications
-  └─ Alert stakeholders on new strategic signals
-
-□ Historical Run Comparison
-  └─ Track signal evolution over time
-
-□ Advanced Filtering
-  └─ By ansoff_level, confidence, keyword
-
-□ Custom Agents
-  └─ User-defined domain-specific prompt injection
-
-
-LANG (Q4 2026+)
-───────────────
-□ Multi-Language Support
-  └─ Scanning in EN/DE/FR
-
-□ Real-time Collaboration
-  └─ Multiple reviewers per run
-
-□ ML Model Training
-  └─ Learn from human corrections
-
-□ Visualization Dashboard
-  └─ Charts: Signal trends, confidence distribution
-
-□ API Rate Limiting & Auth
-  └─ JWT tokens, quota management
+T=0.0s   UI startet setInterval(poll, 1500)
+T=1.5s   GET /workflow/{run_id}  → scanning läuft, 1. Step pulsiert gelb
+T=3.0s   GET ...                 → scanning done, assessment läuft
+T=4.5s   GET ...                 → assessment.detail.progress: 3/12
+                                   step-summary growing, streaming-pill aktiv
+T=6.0s   GET ...                 → assessment.detail.progress: 6/12
+                                   (alle 4. Tick auch: GET /workflow → Liste)
+T=...    ... weitere Polls ...
+T=Nx     GET ...                 → status=completed
+         → UI stoppt Polling, ruft GET /llm-health + GET /workflow erneut
 ```
 
 ---
 
-**Erzeugt:** 2026-06-16  
-**Workflow System:** CrewAI (Python/FastAPI) + Next.js Frontend  
-**Status:** Prototype, Fully Functional  
+## Roadmap / Improvement Backlog
+
+### ✅ Erledigt seit Initialversion
+
+- **RSS-basiertes Scanning** mit synthetischem Fallback (statt Mock-Items)
+- **LLM-Klassifikation pro Case** im Assessment (statt SHA-Heuristik)
+- **Streaming der Stage-Summaries** mit Live-Cursor in der UI
+- **Asynchroner Workflow** mit Polling (statt Block-bis-fertig)
+- **Run History** (`GET /workflow`, klickbare Liste, History-Reset)
+- **LLM-Health-Endpoint** mit Live-Pill in der UI
+
+### Offen — hohe Priorität
+
+- **HITL-Pause** zwischen Expert und Scenario; Workflow hält an, bis pending
+  Cases entweder approved oder rejected sind. Position im Datenfluss steht
+  schon (status="pending"), nur der Pause-Mechanismus fehlt.
+- **Cross-Run-Dedup** — pro Case prüfen ob die URL in vorherigen Runs schon
+  klassifiziert wurde; Badge "Neu" / "Wiederkehrend (3× seit …)" anzeigen.
+- **LLM-gestützter Expert-Step** — aktuell Schwellwert, könnte per LLM-Call
+  einen echten Expert-Kommentar pro Case generieren.
+
+### Offen — mittlere Priorität
+
+- **Echter Multi-Agent-Crew** — statt `summarize_stage` mit Single-Agent ein
+  echter `Crew(agents=[Scanner, Assessor, Expert, Planner], process=...)`.
+- **Token-Cost / Latency-Metriken** pro Step via LiteLLM `usage` und Cost.
+- **Charts in der UI** — Confidence-Verteilung, Ansoff-Heatmap, Signale-Trend
+  über Runs hinweg.
+- **Deutsche RSS-Quellen** ergänzen (BMWK/Heise/pv-magazine waren beim Probe
+  bot-blockiert; DuckDuckGo-Site-Search oder archive.org-RSS als Workaround).
+- **SQLite statt state.json** — Indizes, Queries, Concurrency. Aktuell wird
+  bei jedem Step-Update die ganze JSON-Datei neu geschrieben.
+
+### Offen — niedrige Priorität
+
+- **Tests** (Unit/Integration) für `crew_layer`, `sources`, `workflow`.
+- **Auth** auf den FastAPI-Endpunkten.
+- **CORS** restriktiver konfigurieren (aktuell `allow_origins=["*"]`).
+- **`.gitignore` + Repo-History-Cleanup** für `__pycache__`, `state.json`,
+  `.env` und früher committete Keys.
+
+---
+
+**Stand:** 2026-06-17
+**System:** CrewAI (Python/FastAPI) + Workflow Console (Next.js)
+**Persistenz:** flat JSON (`data/state.json`)
+**LLM-Provider:** beliebiges LiteLLM-kompatibles Modell, default OpenRouter

@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from app.config import settings
-from app.crew_layer import summarize_stage
+from app.crew_layer import Classification, classify_case, summarize_stage
 from app.data_store import get_search_terms, upsert_cases, upsert_run
 from app.models import SignalCase, SourceItem, WorkflowRun, WorkflowStep
 from app.sources import search_sources
@@ -55,7 +55,7 @@ def _ansoff_level(term: str) -> int:
     return 1
 
 
-def run_workflow(search_terms: list[str] | None = None, focus: str | None = None) -> WorkflowRun:
+def prepare_run(search_terms: list[str] | None = None, focus: str | None = None) -> WorkflowRun:
     resolved_terms = search_terms or get_search_terms().search_terms
     resolved_focus = focus or settings.default_focus
 
@@ -70,6 +70,29 @@ def run_workflow(search_terms: list[str] | None = None, focus: str | None = None
         summary={},
     )
     upsert_run(run)
+    return run
+
+
+def _make_streaming_emitter(step: WorkflowStep, run: WorkflowRun):
+    """Return a callback that writes partial LLM output into step.detail.crewai."""
+
+    def emit(partial: str) -> None:
+        current = dict(step.detail or {})
+        current["crewai"] = {
+            "enabled": True,
+            "summary": partial,
+            "streaming": True,
+        }
+        step.detail = current
+        run.updated_at = _now()
+        upsert_run(run)
+
+    return emit
+
+
+def execute_run(run: WorkflowRun) -> WorkflowRun:
+    resolved_terms = run.search_terms
+    resolved_focus = run.focus
 
     # 1) Scanning
     step_scan = _start_step("scanning")
@@ -81,6 +104,7 @@ def run_workflow(search_terms: list[str] | None = None, focus: str | None = None
         stage_name="Scanning Agent",
         objective="Collect weak-signal candidates from energy-related sources.",
         payload={"focus": resolved_focus, "hits": len(scanned)},
+        on_chunk=_make_streaming_emitter(step_scan, run),
     )
     _finish_step(
         step_scan,
@@ -100,39 +124,79 @@ def run_workflow(search_terms: list[str] | None = None, focus: str | None = None
     # 2) Assessment
     step_assess = _start_step("assessment")
     run.steps.append(step_assess)
+    step_assess.detail = {"progress": {"classified": 0, "total": len(scanned)}}
     upsert_run(run)
 
     cases: list[SignalCase] = []
-    for item in scanned:
+    llm_count = 0
+    heuristic_count = 0
+
+    for idx, item in enumerate(scanned, start=1):
         term = item["keyword"]
         source: SourceItem = item["source"]
-        confidence = _confidence(term, source)
-        is_signal = confidence >= 0.62
-        rationale = (
-            "Detected potential structural impact in policy, cost, or security dimensions "
-            f"for keyword '{term}'."
+
+        heuristic_conf = _confidence(term, source)
+        heuristic = Classification(
+            is_signal=heuristic_conf >= 0.62,
+            confidence=heuristic_conf,
+            ansoff_level=_ansoff_level(term),
+            rationale=(
+                "Heuristic baseline: trust-score and keyword tokens suggest "
+                f"a {'signal' if heuristic_conf >= 0.62 else 'noise'} candidate for '{term}'."
+            ),
+            source="heuristic",
         )
+
+        classification = classify_case(
+            term=term,
+            title=source.title,
+            snippet=source.snippet,
+            focus=resolved_focus,
+            published=source.published_at,
+            heuristic_fallback=heuristic,
+        )
+
+        if classification.source == "llm":
+            llm_count += 1
+        else:
+            heuristic_count += 1
+
         case = SignalCase(
             case_id=f"case_{uuid4().hex[:10]}",
             run_id=run.run_id,
             keyword=term,
             title=source.title,
-            rationale=rationale,
-            confidence=confidence,
-            is_signal=is_signal,
-            ansoff_level=_ansoff_level(term),
+            rationale=classification.rationale,
+            confidence=classification.confidence,
+            is_signal=classification.is_signal,
+            ansoff_level=classification.ansoff_level,
             validation_status="pending",
             sources=[source],
         )
         cases.append(case)
 
+        # Stream progress every few cases so the UI can poll it live.
+        if idx % 3 == 0 or idx == len(scanned):
+            step_assess.detail = {
+                "progress": {"classified": idx, "total": len(scanned)},
+                "llm_classified": llm_count,
+                "heuristic_classified": heuristic_count,
+                "signal_count": len([c for c in cases if c.is_signal]),
+                "noise_count": len([c for c in cases if not c.is_signal]),
+            }
+            run.updated_at = _now()
+            upsert_run(run)
+
     assess_summary = summarize_stage(
         stage_name="Assessment Agent",
         objective="Classify candidates into signal vs noise with rationale.",
+        on_chunk=_make_streaming_emitter(step_assess, run),
         payload={
             "candidate_count": len(cases),
             "signal_count": len([c for c in cases if c.is_signal]),
             "noise_count": len([c for c in cases if not c.is_signal]),
+            "llm_classified": llm_count,
+            "heuristic_classified": heuristic_count,
         },
     )
     _finish_step(
@@ -141,6 +205,9 @@ def run_workflow(search_terms: list[str] | None = None, focus: str | None = None
             "candidate_count": len(cases),
             "signal_count": len([c for c in cases if c.is_signal]),
             "noise_count": len([c for c in cases if not c.is_signal]),
+            "llm_classified": llm_count,
+            "heuristic_classified": heuristic_count,
+            "progress": {"classified": len(scanned), "total": len(scanned)},
             "crewai": {
                 "enabled": assess_summary.used_crewai,
                 "summary": assess_summary.text,
@@ -171,6 +238,7 @@ def run_workflow(search_terms: list[str] | None = None, focus: str | None = None
     expert_summary = summarize_stage(
         stage_name="Energy Expert Agent",
         objective="Validate strategic relevance and assign confidence context.",
+        on_chunk=_make_streaming_emitter(step_expert, run),
         payload={
             "validated_count": validated_count,
             "pending_review_count": len([c for c in cases if c.validation_status == "pending"]),
@@ -214,6 +282,7 @@ def run_workflow(search_terms: list[str] | None = None, focus: str | None = None
     scenario_summary = summarize_stage(
         stage_name="Scenario Agent",
         objective="Synthesize validated weak signals into strategic alerts.",
+        on_chunk=_make_streaming_emitter(step_scenario, run),
         payload={"alerts": strategic_alerts[:5], "alert_count": len(strategic_alerts)},
     )
     _finish_step(
@@ -240,3 +309,15 @@ def run_workflow(search_terms: list[str] | None = None, focus: str | None = None
     upsert_run(run)
 
     return run
+
+
+def run_workflow(search_terms: list[str] | None = None, focus: str | None = None) -> WorkflowRun:
+    run = prepare_run(search_terms=search_terms, focus=focus)
+    try:
+        return execute_run(run)
+    except Exception as exc:
+        run.status = "failed"
+        run.updated_at = _now()
+        run.summary = {**run.summary, "error": str(exc)[:300]}
+        upsert_run(run)
+        raise

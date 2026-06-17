@@ -1,12 +1,105 @@
 from __future__ import annotations
 
 import hashlib
+import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from time import mktime
+
+import feedparser
+import httpx
 
 from app.models import SourceItem
 
 
-_BASE_URLS = [
+@dataclass(frozen=True)
+class Feed:
+    name: str
+    url: str
+    trust_score: float
+
+
+# Curated RSS feeds reachable without API keys.
+# Trust scores reflect editorial quality and topic relevance for energy foresight.
+FEEDS: list[Feed] = [
+    Feed("Clean Energy Wire", "https://www.cleanenergywire.org/rss.xml", 0.88),
+    Feed("Energy Monitor", "https://www.energymonitor.ai/feed", 0.78),
+    Feed("Climate Change News", "https://www.climatechangenews.com/feed/", 0.74),
+    Feed("Renewable Energy World", "https://www.renewableenergyworld.com/feed/", 0.70),
+]
+
+_HTTP_TIMEOUT = 8.0
+_USER_AGENT = "Mozilla/5.0 (compatible; ForesightAgent/1.0; +https://example.local)"
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_MAX_HITS_PER_TERM = 4
+
+
+def _strip_html(text: str) -> str:
+    return _HTML_TAG_RE.sub("", text or "").strip()
+
+
+def _parse_published(entry: dict) -> str | None:
+    for field in ("published_parsed", "updated_parsed"):
+        struct = entry.get(field)
+        if struct:
+            try:
+                return datetime.utcfromtimestamp(mktime(struct)).date().isoformat()
+            except Exception:
+                continue
+    for field in ("published", "updated"):
+        value = entry.get(field)
+        if value:
+            return str(value)[:10]
+    return None
+
+
+def _fetch_feed(feed: Feed) -> list[dict]:
+    try:
+        response = httpx.get(
+            feed.url,
+            timeout=_HTTP_TIMEOUT,
+            follow_redirects=True,
+            headers={"User-Agent": _USER_AGENT, "Accept": "application/rss+xml, application/xml, text/xml"},
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        print(f"[sources] feed fetch failed for {feed.name}: {exc}")
+        return []
+
+    parsed = feedparser.parse(response.content)
+    entries: list[dict] = []
+    for raw in parsed.entries:
+        title = _strip_html(raw.get("title", ""))
+        summary = _strip_html(raw.get("summary", "") or raw.get("description", ""))
+        link = raw.get("link", "")
+        if not (title and link):
+            continue
+        entries.append(
+            {
+                "title": title,
+                "summary": summary,
+                "link": link,
+                "published": _parse_published(raw),
+                "feed": feed,
+            }
+        )
+    return entries
+
+
+def _entry_matches_term(entry: dict, term: str) -> bool:
+    needle = term.lower()
+    haystack = f"{entry['title']} {entry['summary']}".lower()
+    if needle in haystack:
+        return True
+    tokens = [token for token in re.split(r"\s+", needle) if len(token) >= 4]
+    if not tokens:
+        return False
+    return all(token in haystack for token in tokens)
+
+
+# --- Synthetic fallback (used when no live RSS data is available) ------------
+
+_FALLBACK_BASE_URLS = [
     "https://www.iea.org/news",
     "https://energy.ec.europa.eu/news_en",
     "https://www.cleanenergywire.org/news",
@@ -15,25 +108,24 @@ _BASE_URLS = [
 ]
 
 
-def _score_from_text(text: str) -> float:
+def _fallback_score(text: str) -> float:
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     value = int(digest[:8], 16) % 100
     return round(0.45 + (value / 100) * 0.5, 2)
 
 
-def search_sources(search_terms: list[str]) -> list[dict]:
+def _fallback_sources(search_terms: list[str]) -> list[dict]:
     items: list[dict] = []
     now = datetime.utcnow()
-
     for i, term in enumerate(search_terms):
         for j in range(2):
-            base = _BASE_URLS[(i + j) % len(_BASE_URLS)]
+            base = _FALLBACK_BASE_URLS[(i + j) % len(_FALLBACK_BASE_URLS)]
             published = (now - timedelta(days=(i + j) % 21)).date().isoformat()
             title = f"{term.title()} update {j + 1}"
             url = f"{base}/{term.lower().replace(' ', '-')}-{j + 1}"
             snippet = (
-                f"New development for '{term}' with implications for supply security, cost, "
-                "and decarbonization pathways in Europe."
+                f"[fallback] Synthetic placeholder for '{term}'. "
+                "Live RSS feeds were unreachable; values are deterministic stand-ins."
             )
             items.append(
                 {
@@ -43,9 +135,47 @@ def search_sources(search_terms: list[str]) -> list[dict]:
                         url=url,
                         snippet=snippet,
                         published_at=published,
-                        trust_score=_score_from_text(url),
+                        trust_score=_fallback_score(url),
                     ),
                 }
             )
+    return items
+
+
+def search_sources(search_terms: list[str]) -> list[dict]:
+    all_entries: list[dict] = []
+    for feed in FEEDS:
+        all_entries.extend(_fetch_feed(feed))
+
+    items: list[dict] = []
+    if all_entries:
+        seen: set[tuple[str, str]] = set()
+        for term in search_terms:
+            matches = [entry for entry in all_entries if _entry_matches_term(entry, term)]
+            matches.sort(key=lambda e: e.get("published") or "", reverse=True)
+
+            for entry in matches[:_MAX_HITS_PER_TERM]:
+                key = (term, entry["link"])
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                snippet = entry["summary"][:480] or f"Article in {entry['feed'].name} mentioning '{term}'."
+                items.append(
+                    {
+                        "keyword": term,
+                        "source": SourceItem(
+                            title=entry["title"],
+                            url=entry["link"],
+                            snippet=snippet,
+                            published_at=entry["published"],
+                            trust_score=entry["feed"].trust_score,
+                        ),
+                    }
+                )
+
+    if not items:
+        print("[sources] no live RSS hits — using synthetic fallback sources")
+        return _fallback_sources(search_terms)
 
     return items

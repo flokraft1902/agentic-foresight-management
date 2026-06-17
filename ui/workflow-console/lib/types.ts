@@ -47,3 +47,19 @@ export interface WorkflowResponse {
   run: WorkflowRun;
   cases: SignalCase[];
 }
+
+export interface RunSummary {
+  run_id: string;
+  created_at: string;
+  updated_at: string;
+  status: WorkflowRun["status"];
+  focus: string;
+  search_terms: string[];
+  summary: Record<string, number | string>;
+  step_count: number;
+}
+
+export interface RunListResponse {
+  ok: boolean;
+  runs: RunSummary[];
+}

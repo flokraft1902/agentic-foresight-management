@@ -38,3 +38,6 @@ yarn-error.log*
 .idea/
 .vscode/
 *.swp
+
+# Claude Code (assistant-local config and transcripts)
+.claude/
