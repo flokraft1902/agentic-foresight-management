@@ -81,7 +81,21 @@ def prepare_run(search_terms: list[str] | None = None, focus: str | None = None)
 
 
 def _make_streaming_emitter(step: WorkflowStep, run: WorkflowRun):
-    """Return a callback that writes partial LLM output into step.detail.crewai."""
+    """Return a callback that writes partial LLM output into step.detail.crewai.
+
+    Sets ``crewai.streaming = True`` immediately on construction so the UI sees
+    the streaming state from the moment ``summarize_stage`` starts — not only
+    once the first LLM chunk arrives. Without this, short-output stages
+    (Scanning, Assessment, Expert) finish their LLM call before the UI's next
+    poll, and the streaming animation is never visible.
+    """
+
+    # Pre-emit: mark the stage as streaming before the first chunk arrives.
+    initial = dict(step.detail or {})
+    initial["crewai"] = {"enabled": True, "summary": "", "streaming": True}
+    step.detail = initial
+    run.updated_at = _now()
+    upsert_run(run)
 
     def emit(partial: str) -> None:
         current = dict(step.detail or {})

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   RunListResponse,
   RunSummary,
@@ -75,6 +75,27 @@ const ZIELDREIECK_DESC: Record<string, string> = {
   versorgungssicherheit: "Versorgungssicherheit — Gesicherte Leistung, N-1, Diversifikation, Netzstabilität",
   umweltvertraeglichkeit: "Umweltverträglichkeit — Dekarbonisierung, Treibhausgasreduktion, Nachhaltigkeit",
 };
+
+const VALIDATION_STATUS_DESC: Record<string, string> = {
+  pending: "pending — Case wurde noch nicht vom Energy Expert validiert",
+  awaiting_review: "awaiting_review — Expert konnte nicht eindeutig entscheiden; Human Review nötig",
+  validated: "validated — Energy Expert hat den Case als domain-plausibel bestätigt",
+  rejected: "rejected — Case wurde als domain-unplausibel oder irrelevant verworfen",
+};
+
+const SIGNAL_DESC = {
+  signal: "Signal — Assessment-Stage hat den Case als bedeutsamen Weak Signal eingestuft (relevant für strategische Foresight)",
+  noise: "Noise — Case wurde als Tagesnachricht ohne strategische Wirkung klassifiziert",
+};
+
+const TIME_HORIZON_DESC = "Geschätzter Zeithorizont der Auswirkung (z.B. <2J, 2-5J, >5J) — vom Energy-Expert-LLM beurteilt";
+const EXPERT_VALID_DESC = {
+  yes: "plausibel — Domain-Check bestanden: Case ist energiewirtschaftlich konsistent mit Merit-Order, Missing-Money, Netzphysik, Marktdesign",
+  no: "unplausibel — Domain-Check fehlgeschlagen: Case widerspricht energiewirtschaftlichen Grundprinzipien",
+};
+const EXPERT_LABEL_DESC = "Energy Expert: LLM-gestützter Domain-Check pro Case (Merit-Order / Missing-Money / Kannibalisierung / Netzphysik) — siehe MAS_Foresight_Architektur §6.3";
+const CONFIDENCE_DESC = "Confidence: Wie sicher die Assessment-Stage in der Signal/Noise-Klassifikation ist (0-100%)";
+const HISTORY_PILL_DESC = "Diese Quelle wurde bereits in früheren Runs gefunden — Wiederkehrende URL deutet auf einen stabileren Trend hin als Einzelfundstücke";
 
 function formatTime(iso?: string): string {
   if (!iso) return "–";
@@ -153,6 +174,85 @@ function stepProgressInfo(step: WorkflowStep): StepProgress | null {
   return null;
 }
 
+// Tiny markdown renderer for the stage summaries produced by summarize_stage().
+// Handles only the syntax we actually ask the LLM to use: ## / ### headings and
+// "- " / "* " bullets. Everything else becomes a paragraph. Designed to be safe
+// against partial / streaming input — half-typed lines render gracefully.
+function renderStageSummary(text: string | null | undefined): ReactNode {
+  if (!text || !text.trim()) return null;
+  const lines = text.split("\n");
+  const blocks: ReactNode[] = [];
+  let bullets: string[] = [];
+  let paragraph: string[] = [];
+  let counter = 0;
+
+  const flushBullets = () => {
+    if (bullets.length === 0) return;
+    const items = bullets;
+    blocks.push(
+      <ul key={`b${counter++}`} className="stage-summary-list">
+        {items.map((b, i) => (
+          <li key={i}>{b}</li>
+        ))}
+      </ul>,
+    );
+    bullets = [];
+  };
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    const para = paragraph;
+    blocks.push(
+      <p key={`p${counter++}`} className="stage-summary-p">
+        {para.join(" ")}
+      </p>,
+    );
+    paragraph = [];
+  };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.startsWith("### ")) {
+      flushBullets();
+      flushParagraph();
+      blocks.push(
+        <h5 key={`h${counter++}`} className="stage-summary-h5">
+          {line.slice(4)}
+        </h5>,
+      );
+    } else if (line.startsWith("## ")) {
+      flushBullets();
+      flushParagraph();
+      blocks.push(
+        <h4 key={`h${counter++}`} className="stage-summary-h4">
+          {line.slice(3)}
+        </h4>,
+      );
+    } else if (line.startsWith("# ")) {
+      flushBullets();
+      flushParagraph();
+      blocks.push(
+        <h4 key={`h${counter++}`} className="stage-summary-h4">
+          {line.slice(2)}
+        </h4>,
+      );
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      flushParagraph();
+      bullets.push(line.slice(2));
+    } else if (line === "") {
+      flushBullets();
+      flushParagraph();
+    } else {
+      flushBullets();
+      paragraph.push(line);
+    }
+  }
+  flushBullets();
+  flushParagraph();
+
+  return <>{blocks}</>;
+}
+
 export default function HomePage() {
   const [termsText, setTermsText] = useState("");
   const [focus, setFocus] = useState(
@@ -185,6 +285,16 @@ export default function HomePage() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [detailCaseId]);
+
+  // Auto-scroll any streaming step-summary container to its bottom whenever
+  // the run updates (new tokens just landed). Only active while streaming.
+  useEffect(() => {
+    if (!run) return;
+    const containers = document.querySelectorAll<HTMLElement>(".step-summary-streaming");
+    containers.forEach((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [run]);
 
   async function loadRunList(): Promise<void> {
     try {
@@ -365,6 +475,9 @@ export default function HomePage() {
 
     let cancelled = false;
     let tick = 0;
+    // 750ms is fast enough to reliably catch short streaming windows
+    // (Scanning/Assessment/Expert summaries finish in ~2-3s). Run-list
+    // refresh stays throttled via the tick % 8 check.
     const intervalId = window.setInterval(async () => {
       tick += 1;
       try {
@@ -376,11 +489,11 @@ export default function HomePage() {
           setRun(data.run);
           setCases(data.cases || []);
         }
-        if (tick % 4 === 0) void loadRunList();
+        if (tick % 8 === 0) void loadRunList();
       } catch {
         // swallow transient polling errors
       }
-    }, 1500);
+    }, 750);
 
     return () => {
       cancelled = true;
@@ -964,9 +1077,18 @@ export default function HomePage() {
                       </div>
                     ) : null}
 
-                    {summaryText ? (
-                      <div className={`step-summary${isStreaming ? " step-summary-streaming" : ""}`}>
-                        {summaryText}
+                    {summaryText || isStreaming ? (
+                      <div className="step-summary-block">
+                        <div className="step-summary-eyebrow">
+                          <span className="step-summary-dot" />
+                          <span>Agent Summary</span>
+                          {isStreaming ? (
+                            <span className="step-summary-eyebrow-streaming">· streaming</span>
+                          ) : null}
+                        </div>
+                        <div className={`step-summary${isStreaming ? " step-summary-streaming" : ""}`}>
+                          {renderStageSummary(summaryText)}
+                        </div>
                       </div>
                     ) : null}
                     <details className="step-detail">
@@ -1339,7 +1461,11 @@ export default function HomePage() {
         })() : null}
 
         {/* Cases */}
-        <section className="surface">
+        <section
+          className="surface"
+          onMouseMove={handleTooltipMove}
+          onMouseLeave={handleTooltipLeave}
+        >
           <div className="surface-header">
             <h2>Signal / Noise Review</h2>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -1425,37 +1551,61 @@ export default function HomePage() {
                           {item.title}
                         </button>
                         <div className="case-meta">
-                          <span>Keyword: {item.keyword}</span>
-                          <span>Confidence: {Math.round(item.confidence * 100)}%</span>
-                          <span>Ansoff L{item.ansoff_level}</span>
-                          <span className="kbd">{item.case_id}</span>
+                          <span data-tip={`Suchbegriff aus der Konfiguration, der diesen Case erzeugt hat: "${item.keyword}"`}>
+                            Keyword: {item.keyword}
+                          </span>
+                          <span data-tip={CONFIDENCE_DESC}>
+                            Confidence: {Math.round(item.confidence * 100)}%
+                          </span>
+                          <span data-tip={`Ansoff L${item.ansoff_level}: ${ANSOFF_DESC[item.ansoff_level] || "—"}`}>
+                            Ansoff L{item.ansoff_level}
+                          </span>
+                          <span className="kbd" data-tip="Eindeutige Case-ID — wird im Export und in der Run-History referenziert">
+                            {item.case_id}
+                          </span>
                         </div>
                       </div>
                       <div className="case-pills">
                         {item.seen_count && item.seen_count > 1 ? (
                           <span
                             className="pill neutral history-pill"
-                            title={`URL bekannt aus ${item.seen_count} Runs seit ${item.first_seen_at ? new Date(item.first_seen_at).toLocaleDateString("de-DE") : "?"}`}
+                            data-tip={`${HISTORY_PILL_DESC}\nGesehen in ${item.seen_count} Runs seit ${item.first_seen_at ? new Date(item.first_seen_at).toLocaleDateString("de-DE") : "?"}`}
                           >
                             ↻ {item.seen_count}× seit {item.first_seen_at ? new Date(item.first_seen_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : "?"}
                           </span>
                         ) : null}
                         {item.pestel_category ? (
-                          <span className="pill neutral" title={PESTEL_LABEL[item.pestel_category]}>
+                          <span
+                            className="pill neutral"
+                            data-tip={`PESTEL: ${PESTEL_DESC[item.pestel_category] || item.pestel_category}`}
+                          >
                             {item.pestel_category}
                           </span>
                         ) : null}
-                        <span className={item.is_signal ? "pill ok" : "pill neutral"}>
+                        <span
+                          className={item.is_signal ? "pill ok" : "pill neutral"}
+                          data-tip={item.is_signal ? SIGNAL_DESC.signal : SIGNAL_DESC.noise}
+                        >
                           {item.is_signal ? "Signal" : "Noise"}
                         </span>
-                        <span className={statusPillClass(item.validation_status)}>{item.validation_status}</span>
+                        <span
+                          className={statusPillClass(item.validation_status)}
+                          data-tip={VALIDATION_STATUS_DESC[item.validation_status] || item.validation_status}
+                        >
+                          {item.validation_status}
+                        </span>
                       </div>
                     </div>
 
                     {item.zieldreieck_dimensions && item.zieldreieck_dimensions.length > 0 ? (
                       <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
                         {item.zieldreieck_dimensions.map((d) => (
-                          <span key={d} className="pill neutral" style={{ fontSize: "0.7rem" }}>
+                          <span
+                            key={d}
+                            className="pill neutral"
+                            style={{ fontSize: "0.7rem" }}
+                            data-tip={`Zieldreieck §1 EnWG: ${ZIELDREIECK_DESC[d] || ZIELDREIECK_LABEL[d] || d}`}
+                          >
                             {ZIELDREIECK_LABEL[d] || d}
                           </span>
                         ))}
@@ -1467,11 +1617,13 @@ export default function HomePage() {
                     {item.expert_comment || item.systemic_impact || item.time_horizon || (item.zieldreieck_impact && Object.keys(item.zieldreieck_impact).length > 0) ? (
                       <div className="expert-block">
                         <div className="expert-pills">
-                          <span className="expert-label">Energy Expert</span>
+                          <span className="expert-label" data-tip={EXPERT_LABEL_DESC}>
+                            Energy Expert
+                          </span>
                           {item.expert_valid === false ? (
-                            <span className="pill bad" title="Domain-Validität verworfen">unplausibel</span>
+                            <span className="pill bad" data-tip={EXPERT_VALID_DESC.no}>unplausibel</span>
                           ) : item.expert_valid === true ? (
-                            <span className="pill ok" title="Domain-Validität bestätigt">plausibel</span>
+                            <span className="pill ok" data-tip={EXPERT_VALID_DESC.yes}>plausibel</span>
                           ) : null}
                           {item.systemic_impact ? (
                             <span
@@ -1482,13 +1634,13 @@ export default function HomePage() {
                                   ? "pill neutral"
                                   : "pill neutral"
                               }
-                              title="Systemischer Impact auf das Energiesystem"
+                              data-tip={`Systemischer Impact: ${IMPACT_DESC[item.systemic_impact] || item.systemic_impact}`}
                             >
                               Impact: {item.systemic_impact}
                             </span>
                           ) : null}
                           {item.time_horizon ? (
-                            <span className="pill neutral" title="Geschätzter Zeithorizont">
+                            <span className="pill neutral" data-tip={TIME_HORIZON_DESC}>
                               {item.time_horizon}
                             </span>
                           ) : null}
@@ -1599,6 +1751,8 @@ export default function HomePage() {
             onClick={() => setDetailCaseId(null)}
             role="dialog"
             aria-modal="true"
+            onMouseMove={handleTooltipMove}
+            onMouseLeave={handleTooltipLeave}
           >
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
@@ -1632,14 +1786,23 @@ export default function HomePage() {
 
               <div className="modal-pills">
                 {item.pestel_category ? (
-                  <span className="pill neutral">
+                  <span
+                    className="pill neutral"
+                    data-tip={`PESTEL: ${PESTEL_DESC[item.pestel_category] || item.pestel_category}`}
+                  >
                     {item.pestel_category} · {PESTEL_LABEL[item.pestel_category]}
                   </span>
                 ) : null}
-                <span className={item.is_signal ? "pill ok" : "pill neutral"}>
+                <span
+                  className={item.is_signal ? "pill ok" : "pill neutral"}
+                  data-tip={item.is_signal ? SIGNAL_DESC.signal : SIGNAL_DESC.noise}
+                >
                   {item.is_signal ? "Signal" : "Noise"}
                 </span>
-                <span className={statusPillClass(item.validation_status)}>
+                <span
+                  className={statusPillClass(item.validation_status)}
+                  data-tip={VALIDATION_STATUS_DESC[item.validation_status] || item.validation_status}
+                >
                   {item.validation_status}
                 </span>
                 {item.systemic_impact ? (
@@ -1651,24 +1814,32 @@ export default function HomePage() {
                         ? "pill neutral"
                         : "pill neutral"
                     }
+                    data-tip={`Systemischer Impact: ${IMPACT_DESC[item.systemic_impact] || item.systemic_impact}`}
                   >
                     Impact: {item.systemic_impact}
                   </span>
                 ) : null}
                 {item.time_horizon ? (
-                  <span className="pill neutral">{item.time_horizon}</span>
+                  <span className="pill neutral" data-tip={TIME_HORIZON_DESC}>
+                    {item.time_horizon}
+                  </span>
                 ) : null}
                 {item.expert_valid === false ? (
-                  <span className="pill bad">unplausibel</span>
+                  <span className="pill bad" data-tip={EXPERT_VALID_DESC.no}>unplausibel</span>
                 ) : item.expert_valid === true ? (
-                  <span className="pill ok">plausibel</span>
+                  <span className="pill ok" data-tip={EXPERT_VALID_DESC.yes}>plausibel</span>
                 ) : null}
               </div>
 
               {dims.length > 0 ? (
                 <div className="modal-tags">
                   {dims.map((d) => (
-                    <span key={d} className="pill neutral" style={{ fontSize: "0.72rem" }}>
+                    <span
+                      key={d}
+                      className="pill neutral"
+                      style={{ fontSize: "0.72rem" }}
+                      data-tip={`Zieldreieck §1 EnWG: ${ZIELDREIECK_DESC[d] || ZIELDREIECK_LABEL[d] || d}`}
+                    >
                       {ZIELDREIECK_LABEL[d] || d}
                     </span>
                   ))}

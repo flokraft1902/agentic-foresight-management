@@ -441,24 +441,126 @@ button.ghost:hover:not(:disabled) {
   font-feature-settings: "tnum";
 }
 
-.step-summary {
+.step-summary-block {
   margin-top: 0.55rem;
+}
+
+.step-summary-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.step-summary-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.step-summary-eyebrow-streaming {
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: 0.7rem;
+}
+
+.step-summary {
   font-size: 0.85rem;
   color: var(--ink);
-  white-space: pre-wrap;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  scroll-behavior: smooth;
+}
+
+.stage-summary-h4 {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0.65rem 0 0.25rem 0;
+  letter-spacing: -0.005em;
+}
+
+.stage-summary-h4:first-child {
+  margin-top: 0;
+}
+
+.stage-summary-h5 {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin: 0.55rem 0 0.2rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stage-summary-list {
+  margin: 0.2rem 0 0.35rem 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.stage-summary-list li {
+  margin: 0.12rem 0;
+}
+
+.stage-summary-list li::marker {
+  color: var(--ink-faint);
+}
+
+.stage-summary-p {
+  margin: 0.3rem 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.stage-summary-p:first-child {
+  margin-top: 0;
+}
+
+/* Subtle scrollbar inside the summary container */
+.step-summary::-webkit-scrollbar {
+  width: 6px;
+}
+.step-summary::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+}
+.step-summary::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+}
+
+.step-summary-streaming {
+  border-left: 2px solid var(--accent);
+  padding-left: 0.55rem;
+  background: linear-gradient(180deg, var(--accent-soft) 0%, transparent 40%);
+  min-height: 1.6rem;
 }
 
 .step-summary-streaming::after {
-  content: "▍";
+  content: "▌";
   display: inline-block;
   color: var(--accent);
-  margin-left: 2px;
-  animation: caret 900ms steps(1, end) infinite;
+  margin-left: 1px;
+  vertical-align: baseline;
+  font-weight: 700;
+  animation: caret 1.05s ease-in-out infinite;
 }
 
 @keyframes caret {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%, 45% { opacity: 1; }
+  55%, 100% { opacity: 0; }
 }
 
 .streaming-pill .streaming-dot {
@@ -714,6 +816,11 @@ details.step-detail pre {
   font-feature-settings: "tnum";
   font-weight: 600;
   color: var(--ink);
+}
+
+/* Help cursor on any element that carries a data-tip hover description */
+[data-tip] {
+  cursor: help;
 }
 
 /* Custom instant tooltip */
