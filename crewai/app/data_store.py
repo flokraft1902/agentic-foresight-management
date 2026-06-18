@@ -73,6 +73,35 @@ def list_runs(limit: int = 25) -> list[WorkflowRun]:
     return sorted_runs[:limit]
 
 
+def lookup_url_history(url: str, exclude_run_id: str | None = None) -> tuple[str | None, str | None, int]:
+    """Return (first_seen_run_id, first_seen_at, count_of_prior_runs) for a URL
+    by scanning all cases. Counts each distinct run only once. Excludes the
+    optionally given run so callers can ignore the run they are currently
+    building."""
+    state = load_state()
+    runs_by_id = {r.run_id: r for r in state.runs}
+    seen_run_ids: set[str] = set()
+    for case in state.cases:
+        if exclude_run_id and case.run_id == exclude_run_id:
+            continue
+        if any(src.url == url for src in case.sources):
+            seen_run_ids.add(case.run_id)
+
+    if not seen_run_ids:
+        return None, None, 0
+
+    earliest_run_id: str | None = None
+    earliest_at: str | None = None
+    for rid in seen_run_ids:
+        run = runs_by_id.get(rid)
+        if not run:
+            continue
+        if earliest_at is None or run.created_at < earliest_at:
+            earliest_at = run.created_at
+            earliest_run_id = run.run_id
+    return earliest_run_id, earliest_at, len(seen_run_ids)
+
+
 def has_active_run() -> bool:
     """Return True only if a workflow is genuinely mid-execution (not just
     paused for HITL review)."""

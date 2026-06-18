@@ -34,6 +34,9 @@ export interface SignalCase {
   reviewed_by?: string;
   reviewed_at?: string;
   sources: SourceItem[];
+  first_seen_run_id?: string | null;
+  first_seen_at?: string | null;
+  seen_count?: number;
 }
 
 export interface WorkflowStep {
@@ -55,6 +58,7 @@ export interface WorkflowRun {
   status: RunStatus;
   steps: WorkflowStep[];
   summary: Record<string, number>;
+  suggested_search_terms?: string[];
 }
 
 export interface WorkflowResponse {

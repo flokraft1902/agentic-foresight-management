@@ -45,7 +45,7 @@ _DDG_SITES: list[tuple[str, str, float]] = [
     ("EC Energy", "energy.ec.europa.eu", 0.88),
     # Think tanks / institutes
     ("Agora Energiewende", "agora-energiewende.org", 0.88),
-    ("Fraunhofer ISE", "ise.fraunhofer.de", 0.88),
+    ("Fraunhofer ISE", "fraunhofer.de", 0.88),
     ("DENA", "dena.de", 0.85),
     ("IEA", "iea.org", 0.90),
     # Quality news

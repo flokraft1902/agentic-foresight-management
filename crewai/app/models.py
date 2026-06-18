@@ -42,6 +42,10 @@ class SignalCase(BaseModel):
     reviewed_by: str | None = None
     reviewed_at: str | None = None
     sources: list[SourceItem] = Field(default_factory=list)
+    # Cross-run history (filled at case-creation time by looking at older runs)
+    first_seen_run_id: str | None = None
+    first_seen_at: str | None = None
+    seen_count: int = 1
 
 
 class WorkflowStep(BaseModel):
@@ -61,6 +65,7 @@ class WorkflowRun(BaseModel):
     status: RunStatus
     steps: list[WorkflowStep]
     summary: dict = Field(default_factory=dict)
+    suggested_search_terms: list[str] = Field(default_factory=list)
 
 
 class StartWorkflowRequest(BaseModel):

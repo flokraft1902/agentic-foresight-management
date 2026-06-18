@@ -227,6 +227,92 @@ _EXPERT_PROMPT = (
 )
 
 
+def suggest_search_terms(
+    focus: str,
+    existing_terms: list[str],
+    validated_cases: list[dict],
+    max_suggestions: int = 5,
+) -> list[str]:
+    """Ask the LLM for related search terms that would expand coverage based on
+    the validated signals from the latest run. Returns [] on any failure."""
+
+    if not settings.llm_api_key or not validated_cases:
+        return []
+
+    try:
+        from litellm import completion  # type: ignore
+    except Exception:
+        return []
+
+    case_lines = "\n".join(
+        f"- term='{c.get('keyword','?')}' pestel={c.get('pestel_category','?')} ansoff={c.get('ansoff_level','?')} title={(c.get('title','') or '')[:90]}"
+        for c in validated_cases[:12]
+    )
+    existing = ", ".join(existing_terms) or "(none)"
+
+    prompt = (
+        "You are a foresight analyst expanding search coverage based on signals found "
+        "in the last run of an energy-foresight system.\n\n"
+        f"Strategic focus:\n{focus}\n\n"
+        f"Existing search terms (do NOT repeat these):\n{existing}\n\n"
+        f"Validated weak signals from the last run:\n{case_lines}\n\n"
+        "Task: suggest 3-5 NEW search terms that would surface RELATED weak signals "
+        "in subsequent runs. Each term must:\n"
+        "- Be in English OR German, matching the topical area\n"
+        "- Be specific enough for meaningful search results (avoid 'energy', 'climate' etc.)\n"
+        "- Differ semantically from the existing terms (no pure rephrasings)\n"
+        "- Cover adjacent PESTEL dimensions or technology areas not yet represented\n\n"
+        "Respond with ONLY a JSON array of strings, no commentary, no markdown fences:\n"
+        '["term 1", "term 2", "term 3"]'
+    )
+
+    try:
+        response = completion(
+            model=settings.llm_model,
+            api_key=settings.llm_api_key,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=220,
+            temperature=0.3,
+            timeout=40,
+        )
+        text = response.choices[0].message.content or ""
+    except Exception as exc:
+        print(f"[suggest_search_terms] LLM call failed: {exc}")
+        return []
+
+    # Try strict JSON first
+    payload = None
+    try:
+        payload = json.loads(text)
+    except Exception:
+        match = re.search(r"\[[\s\S]*\]", text)
+        if match:
+            try:
+                payload = json.loads(match.group(0))
+            except Exception:
+                pass
+
+    if not isinstance(payload, list):
+        return []
+
+    cleaned: list[str] = []
+    lower_existing = {t.lower().strip() for t in existing_terms}
+    for raw in payload:
+        if not isinstance(raw, str):
+            continue
+        term = raw.strip().strip('"').strip("'")
+        if not term or len(term) < 3 or len(term) > 80:
+            continue
+        if term.lower() in lower_existing:
+            continue
+        if term in cleaned:
+            continue
+        cleaned.append(term)
+        if len(cleaned) >= max_suggestions:
+            break
+    return cleaned
+
+
 def _default_expert_heuristic(confidence: float) -> ExpertValidation:
     impact = "HOCH" if confidence >= 0.82 else "MITTEL" if confidence >= 0.6 else "GERING"
     return ExpertValidation(

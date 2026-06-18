@@ -42,10 +42,38 @@ const PESTEL_LABEL: Record<string, string> = {
   L: "Legal",
 };
 
+const PESTEL_DESC: Record<string, string> = {
+  P: "Political — Politik, Regulierung, Geopolitik (z.B. EEG-Novelle, H2-Importstrategie)",
+  E: "Economic — Märkte, Preise, Kapitalkosten (z.B. Merit-Order-Spread, CO2-Preis, LCOE)",
+  S: "Social — Akzeptanz, Konsumverhalten, Gerechtigkeit (z.B. Bürgerenergie, Energiearmut)",
+  T: "Technological — Innovationen, Effizienzsprünge, Patente (z.B. Solid State Battery, V2G)",
+  En: "Environmental — Klimawandel, Ressourcen, physische Risiken (z.B. Dürre, kritische Rohstoffe)",
+  L: "Legal — Rechtsprechung, Normen, Genehmigungen (z.B. RED III, Beschleunigungsgesetz)",
+};
+
+const ANSOFF_DESC: Record<number, string> = {
+  1: "Sense of Threat — vages Gefühl der Veränderung, kaum Belege",
+  2: "Source Known — Quelle identifizierbar, Natur der Entwicklung unklar",
+  3: "Threat Characterized — Entwicklung konkretisiert, strategische Implikationen offen",
+  4: "Response Known — Reaktionsmöglichkeiten bekannt; Übergang vom Weak Signal zum Trend",
+};
+
+const IMPACT_DESC: Record<string, string> = {
+  HOCH: "Hohe Wirkung — kann Merit-Order verschieben oder Kapazitätsmärkte beeinflussen",
+  MITTEL: "Mittlere Wirkung — operativ relevant, kein Strukturbruch",
+  GERING: "Geringe Wirkung — Tagesgeschehen ohne systemische Folgen",
+};
+
 const ZIELDREIECK_LABEL: Record<string, string> = {
   wirtschaftlichkeit: "Wirtschaftlichkeit",
   versorgungssicherheit: "Versorgungssicherheit",
   umweltvertraeglichkeit: "Umweltverträglichkeit",
+};
+
+const ZIELDREIECK_DESC: Record<string, string> = {
+  wirtschaftlichkeit: "Wirtschaftlichkeit — Wettbewerbsfähigkeit, Merit-Order, LCOE, Investitionsrenditen",
+  versorgungssicherheit: "Versorgungssicherheit — Gesicherte Leistung, N-1, Diversifikation, Netzstabilität",
+  umweltvertraeglichkeit: "Umweltverträglichkeit — Dekarbonisierung, Treibhausgasreduktion, Nachhaltigkeit",
 };
 
 function formatTime(iso?: string): string {
@@ -140,12 +168,23 @@ export default function HomePage() {
   const [runList, setRunList] = useState<RunSummary[]>([]);
   const [caseFilter, setCaseFilter] = useState<"all" | "awaiting_review" | "validated" | "rejected">("all");
   const [caseSearch, setCaseSearch] = useState("");
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [detailCaseId, setDetailCaseId] = useState<string | null>(null);
 
   useEffect(() => {
     void loadTerms();
     void checkLlmHealth();
     void loadRunList();
   }, []);
+
+  useEffect(() => {
+    if (!detailCaseId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDetailCaseId(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [detailCaseId]);
 
   async function loadRunList(): Promise<void> {
     try {
@@ -400,6 +439,69 @@ export default function HomePage() {
     return c;
   }, [cases]);
 
+  const pestelCounts = useMemo(() => {
+    const keys: Array<"P" | "E" | "S" | "T" | "En" | "L"> = ["P", "E", "S", "T", "En", "L"];
+    const c: Record<string, number> = { P: 0, E: 0, S: 0, T: 0, En: 0, L: 0, unknown: 0 };
+    for (const item of cases) {
+      if (item.pestel_category && keys.includes(item.pestel_category)) {
+        c[item.pestel_category] += 1;
+      } else {
+        c.unknown += 1;
+      }
+    }
+    return c;
+  }, [cases]);
+
+  const pestelTotal = useMemo(
+    () => Object.entries(pestelCounts).filter(([k]) => k !== "unknown").reduce((s, [, v]) => s + v, 0),
+    [pestelCounts],
+  );
+
+  const ansoffCounts = useMemo(() => {
+    const c: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    for (const item of cases) {
+      const lvl = item.ansoff_level;
+      if (lvl >= 1 && lvl <= 4) c[lvl] += 1;
+    }
+    return c;
+  }, [cases]);
+
+  const impactCounts = useMemo(() => {
+    const c: Record<string, number> = { HOCH: 0, MITTEL: 0, GERING: 0, unknown: 0 };
+    for (const item of cases) {
+      if (item.systemic_impact && ["HOCH", "MITTEL", "GERING"].includes(item.systemic_impact)) {
+        c[item.systemic_impact] += 1;
+      } else {
+        c.unknown += 1;
+      }
+    }
+    return c;
+  }, [cases]);
+
+  const zieldreieckCounts = useMemo(() => {
+    const c: Record<string, number> = { wirtschaftlichkeit: 0, versorgungssicherheit: 0, umweltvertraeglichkeit: 0 };
+    for (const item of cases) {
+      for (const dim of item.zieldreieck_dimensions || []) {
+        if (dim in c) c[dim] += 1;
+      }
+    }
+    return c;
+  }, [cases]);
+
+  const trendData = useMemo(() => {
+    return runList
+      .slice()
+      .reverse() // oldest first
+      .filter((r) => r.status === "completed")
+      .map((r) => ({
+        run_id: r.run_id,
+        created_at: r.created_at,
+        cases: Number(r.summary?.cases_total || 0),
+        signals: Number(r.summary?.signals || 0),
+        validated: Number(r.summary?.validated_signals || 0),
+      }));
+  }, [runList]);
+
   const filteredCases = useMemo(() => {
     const search = caseSearch.trim().toLowerCase();
     const matchesStatus = (item: SignalCase) =>
@@ -425,6 +527,117 @@ export default function HomePage() {
         return b.confidence - a.confidence;
       });
   }, [cases, caseFilter, caseSearch]);
+  function downloadBlob(filename: string, content: string, mime: string) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function csvCell(value: unknown): string {
+    if (value === null || value === undefined) return "";
+    const str = Array.isArray(value) ? value.join("; ") : String(value);
+    if (/[",;\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+    return str;
+  }
+
+  function exportCases(format: "csv" | "json"): void {
+    if (cases.length === 0) {
+      setMessage("Keine Cases zum Exportieren vorhanden.");
+      return;
+    }
+
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+    const runIdPart = run ? `_${run.run_id.replace("run_", "")}` : "";
+    const filename = `foresight_cases${runIdPart}_${ts}.${format}`;
+
+    if (format === "json") {
+      downloadBlob(filename, JSON.stringify(cases, null, 2), "application/json");
+      setMessage(`${cases.length} Cases als JSON exportiert (${filename}).`);
+      return;
+    }
+
+    const headers = [
+      "case_id",
+      "run_id",
+      "keyword",
+      "title",
+      "is_signal",
+      "confidence",
+      "ansoff_level",
+      "pestel_category",
+      "zieldreieck_dimensions",
+      "validation_status",
+      "expert_valid",
+      "systemic_impact",
+      "time_horizon",
+      "rationale",
+      "expert_comment",
+      "reviewer_comment",
+      "reviewed_by",
+      "reviewed_at",
+      "seen_count",
+      "first_seen_at",
+      "source_urls",
+    ];
+    const lines = [headers.join(",")];
+    for (const c of cases) {
+      lines.push(
+        [
+          c.case_id,
+          c.run_id,
+          c.keyword,
+          c.title,
+          c.is_signal,
+          c.confidence,
+          c.ansoff_level,
+          c.pestel_category ?? "",
+          c.zieldreieck_dimensions ?? [],
+          c.validation_status,
+          c.expert_valid ?? "",
+          c.systemic_impact ?? "",
+          c.time_horizon ?? "",
+          c.rationale,
+          c.expert_comment ?? "",
+          c.reviewer_comment ?? "",
+          c.reviewed_by ?? "",
+          c.reviewed_at ?? "",
+          c.seen_count ?? "",
+          c.first_seen_at ?? "",
+          c.sources.map((s) => s.url).join("; "),
+        ]
+          .map(csvCell)
+          .join(","),
+      );
+    }
+    downloadBlob(filename, "﻿" + lines.join("\n"), "text/csv;charset=utf-8");
+    setMessage(`${cases.length} Cases als CSV exportiert (${filename}).`);
+  }
+
+  function handleTooltipMove(e: React.MouseEvent<HTMLElement>) {
+    const target = e.target as Element | null;
+    if (!target || typeof (target as Element).closest !== "function") {
+      setTooltip(null);
+      return;
+    }
+    const el = (target as Element).closest("[data-tip]");
+    const tip = el?.getAttribute("data-tip");
+    if (tip) {
+      setTooltip({ x: e.clientX, y: e.clientY, text: tip });
+    } else {
+      setTooltip(null);
+    }
+  }
+
+  function handleTooltipLeave() {
+    setTooltip(null);
+  }
+
   const llmPillClass = !llmHealth ? "pill neutral" : llmHealth.ok ? "pill ok" : "pill bad";
   const llmPillLabel = llmChecking
     ? "prüft …"
@@ -480,6 +693,33 @@ export default function HomePage() {
                 placeholder="hydrogen import germany, energy storage solid state battery"
               />
             </label>
+
+            {run?.suggested_search_terms && run.suggested_search_terms.length > 0 ? (
+              <div className="suggestion-block">
+                <div className="suggestion-label">
+                  Vorschläge aus Run <span className="kbd" style={{ fontSize: "0.7rem" }}>{run.run_id.replace("run_", "").slice(0, 17)}</span>
+                </div>
+                <div className="suggestion-chips">
+                  {run.suggested_search_terms
+                    .filter((s) => !parsedTerms().some((t) => t.toLowerCase() === s.toLowerCase()))
+                    .map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="suggestion-chip"
+                        title="Klicken um diesen Begriff zu den Suchbegriffen hinzuzufügen"
+                        onClick={() => {
+                          const current = parsedTerms();
+                          if (current.some((t) => t.toLowerCase() === suggestion.toLowerCase())) return;
+                          setTermsText([...current, suggestion].join(", "));
+                        }}
+                      >
+                        + {suggestion}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            ) : null}
 
             <label>
               Strategischer Fokus
@@ -740,15 +980,393 @@ export default function HomePage() {
           )}
         </section>
 
+        {/* Analyse: vier Charts in einer Grid */}
+        {cases.length > 0 ? (() => {
+          const ANSOFF_LABEL: Record<number, string> = {
+            1: "Sense of Threat",
+            2: "Source Known",
+            3: "Threat Characterized",
+            4: "Response Known",
+          };
+          const ZD_KEYS = ["wirtschaftlichkeit", "versorgungssicherheit", "umweltvertraeglichkeit"] as const;
+          const pestelMax = Math.max(1, ...(["P", "E", "S", "T", "En", "L"] as const).map((k) => pestelCounts[k]));
+          const ansoffMax = Math.max(1, ...[1, 2, 3, 4].map((k) => ansoffCounts[k]));
+          const zdMax = Math.max(1, ...ZD_KEYS.map((k) => zieldreieckCounts[k]));
+          const impactTotal = impactCounts.HOCH + impactCounts.MITTEL + impactCounts.GERING;
+          const impactSegments = [
+            { label: "HOCH", value: impactCounts.HOCH, color: "var(--bad)" },
+            { label: "MITTEL", value: impactCounts.MITTEL, color: "var(--warn)" },
+            { label: "GERING", value: impactCounts.GERING, color: "var(--ink-faint)" },
+          ];
+          const donutSize = 150;
+          const donutRadius = (donutSize - 26) / 2;
+          const donutCircum = 2 * Math.PI * donutRadius;
+          let cum = 0;
+
+          return (
+            <section
+              className="surface"
+              onMouseMove={handleTooltipMove}
+              onMouseLeave={handleTooltipLeave}
+            >
+              <div className="surface-header">
+                <h2>Analyse</h2>
+                <span className="meta">{cases.length} Cases</span>
+              </div>
+              <div className="chart-grid">
+                {/* PESTEL */}
+                <div className="chart-block">
+                  <div
+                    className="chart-title"
+                    data-tip="PESTEL klassifiziert jedes Signal nach dem Ursprung der Veränderung — sechs Dimensionen aus Politik bis Recht (siehe MAS_Foresight_Architektur §5.4)"
+                  >
+                    PESTEL-Verteilung
+                  </div>
+                  <div className="chart-sub">Woher die Veränderung kommt — hover über die Balken für Details</div>
+                  <div className="bar-chart">
+                    {(["P", "E", "S", "T", "En", "L"] as const).map((key) => {
+                      const count = pestelCounts[key];
+                      const pct = (count / pestelMax) * 100;
+                      const totalPct = pestelTotal > 0 ? Math.round((count / pestelTotal) * 100) : 0;
+                      return (
+                        <div
+                          key={key}
+                          className="bar-row"
+                          data-tip={`${PESTEL_DESC[key]}\n${count} Cases (${totalPct}% der klassifizierten Cases)`}
+                        >
+                          <div className="bar-key">{key}</div>
+                          <div className="bar-label">{PESTEL_LABEL[key]}</div>
+                          <div className="bar-track">
+                            <div className="bar-fill" style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className="bar-count">{count}</div>
+                        </div>
+                      );
+                    })}
+                    {pestelCounts.unknown > 0 ? (
+                      <div
+                        className="meta"
+                        style={{ fontSize: "0.7rem", marginTop: "0.3rem" }}
+                        data-tip="Cases ohne PESTEL-Kategorie entstehen wenn das LLM keine eindeutige Zuordnung liefert oder die Heuristik den Case klassifiziert hat."
+                      >
+                        {pestelCounts.unknown} Cases ohne PESTEL-Kategorie
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Ansoff */}
+                <div className="chart-block">
+                  <div
+                    className="chart-title"
+                    data-tip="Ansoff (1975) Weak-Signal-Skala: je niedriger das Level, desto schwächer/früher das Signal. Level 4 bedeutet, die Entwicklung kippt vom Weak Signal zum erkennbaren Trend."
+                  >
+                    Ansoff Weak-Signal-Level
+                  </div>
+                  <div className="chart-sub">Reifegrad der detektierten Signale (L1 = schwach, L4 = bekannt)</div>
+                  <div className="bar-chart">
+                    {[1, 2, 3, 4].map((lvl) => {
+                      const count = ansoffCounts[lvl];
+                      const pct = (count / ansoffMax) * 100;
+                      const totalAnsoff = ansoffCounts[1] + ansoffCounts[2] + ansoffCounts[3] + ansoffCounts[4];
+                      const totalPct = totalAnsoff > 0 ? Math.round((count / totalAnsoff) * 100) : 0;
+                      return (
+                        <div
+                          key={lvl}
+                          className="bar-row"
+                          data-tip={`${ANSOFF_DESC[lvl]}\n${count} Cases (${totalPct}% der Cases)`}
+                        >
+                          <div className="bar-key">L{lvl}</div>
+                          <div className="bar-label">{ANSOFF_LABEL[lvl]}</div>
+                          <div className="bar-track">
+                            <div
+                              className="bar-fill"
+                              style={{ width: `${pct}%`, background: lvl >= 4 ? "var(--ink-faint)" : "var(--accent)" }}
+                            />
+                          </div>
+                          <div className="bar-count">{count}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Systemic Impact Donut */}
+                <div className="chart-block">
+                  <div
+                    className="chart-title"
+                    data-tip="Systemischer Impact wird vom Energy-Expert-LLM pro Case beurteilt. Beurteilungsbasis: Merit-Order, Missing Money, Kannibalisierungseffekt, Netzphysik."
+                  >
+                    Systemischer Impact
+                  </div>
+                  <div className="chart-sub">Wirkungsstärke laut Energy Expert — hover über die Donut-Segmente</div>
+                  <div className="donut-wrap">
+                    <svg width={donutSize} height={donutSize} viewBox={`0 0 ${donutSize} ${donutSize}`} className="donut">
+                      <circle
+                        cx={donutSize / 2}
+                        cy={donutSize / 2}
+                        r={donutRadius}
+                        fill="none"
+                        stroke="var(--surface-muted)"
+                        strokeWidth={22}
+                      />
+                      {impactTotal > 0 ? impactSegments.map((seg) => {
+                        if (seg.value === 0) return null;
+                        const length = (seg.value / impactTotal) * donutCircum;
+                        const offset = -cum;
+                        const segPct = Math.round((seg.value / impactTotal) * 100);
+                        cum += length;
+                        return (
+                          <circle
+                            key={seg.label}
+                            cx={donutSize / 2}
+                            cy={donutSize / 2}
+                            r={donutRadius}
+                            fill="none"
+                            stroke={seg.color}
+                            strokeWidth={22}
+                            strokeDasharray={`${length} ${donutCircum}`}
+                            strokeDashoffset={offset}
+                            transform={`rotate(-90 ${donutSize / 2} ${donutSize / 2})`}
+                            style={{ cursor: "help" }}
+                            data-tip={`${seg.label}: ${seg.value} Cases (${segPct}%)\n${IMPACT_DESC[seg.label]}`}
+                          />
+                        );
+                      }) : null}
+                      <text
+                        x={donutSize / 2}
+                        y={donutSize / 2 - 4}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        style={{ fontSize: "1.5rem", fontWeight: 600, fill: "var(--ink)" }}
+                      >
+                        {impactTotal}
+                      </text>
+                      <text
+                        x={donutSize / 2}
+                        y={donutSize / 2 + 14}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        style={{ fontSize: "0.7rem", fill: "var(--ink-faint)" }}
+                      >
+                        bewertet
+                      </text>
+                    </svg>
+                    <div className="donut-legend">
+                      {impactSegments.map((seg) => {
+                        const segPct = impactTotal > 0 ? Math.round((seg.value / impactTotal) * 100) : 0;
+                        return (
+                          <div
+                            key={seg.label}
+                            className="donut-legend-row"
+                            data-tip={`${IMPACT_DESC[seg.label]}\n${seg.value} Cases (${segPct}%)`}
+                          >
+                            <span className="donut-legend-dot" style={{ background: seg.color }} />
+                            <span className="donut-legend-label">{seg.label}</span>
+                            <span className="donut-legend-count">{seg.value}</span>
+                          </div>
+                        );
+                      })}
+                      {impactCounts.unknown > 0 ? (
+                        <div
+                          className="meta"
+                          style={{ fontSize: "0.7rem", marginTop: "0.3rem" }}
+                          data-tip="Cases ohne Impact-Bewertung: Expert-LLM nicht erreichbar oder Heuristik-Fallback aktiv."
+                        >
+                          {impactCounts.unknown} ohne Bewertung
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Zieldreieck */}
+                <div className="chart-block">
+                  <div
+                    className="chart-title"
+                    data-tip="Energiepolitisches Zieldreieck aus §1 EnWG. Jeder Case kann mehrere Dimensionen gleichzeitig tangieren, daher kann die Summe > Anzahl Cases sein."
+                  >
+                    Zieldreieck-Coverage
+                  </div>
+                  <div className="chart-sub">Welche §1 EnWG-Ziele tangiert sind — Cases können mehrere abdecken</div>
+                  <div className="bar-chart">
+                    {ZD_KEYS.map((key) => {
+                      const count = zieldreieckCounts[key];
+                      const pct = (count / zdMax) * 100;
+                      const casesPct = cases.length > 0 ? Math.round((count / cases.length) * 100) : 0;
+                      return (
+                        <div
+                          key={key}
+                          className="bar-row"
+                          data-tip={`${ZIELDREIECK_DESC[key]}\n${count} Cases tangieren diese Dimension (${casesPct}% aller Cases)`}
+                        >
+                          <div className="bar-key" style={{ fontSize: "0.7rem" }}>
+                            {key === "wirtschaftlichkeit" ? "W" : key === "versorgungssicherheit" ? "V" : "U"}
+                          </div>
+                          <div className="bar-label">{ZIELDREIECK_LABEL[key]}</div>
+                          <div className="bar-track">
+                            <div className="bar-fill" style={{ width: `${pct}%`, background: "var(--ok)" }} />
+                          </div>
+                          <div className="bar-count">{count}</div>
+                        </div>
+                      );
+                    })}
+                    <div className="meta" style={{ fontSize: "0.7rem", marginTop: "0.3rem" }}>
+                      Cases können mehrere Dimensionen tangieren
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        })() : null}
+
+        {/* Trend über Runs */}
+        {trendData.length >= 2 ? (() => {
+          const maxY = Math.max(1, ...trendData.flatMap((d) => [d.cases, d.signals, d.validated]));
+          const padding = { top: 16, right: 16, bottom: 36, left: 36 };
+          const width = 720;
+          const height = 220;
+          const innerW = width - padding.left - padding.right;
+          const innerH = height - padding.top - padding.bottom;
+          const xScale = (i: number) =>
+            padding.left + (trendData.length > 1 ? (i / (trendData.length - 1)) * innerW : innerW / 2);
+          const yScale = (v: number) => padding.top + (1 - v / maxY) * innerH;
+          const linePath = (key: "cases" | "signals" | "validated") =>
+            trendData.map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(i)} ${yScale(d[key])}`).join(" ");
+
+          const yTicks = [0, Math.ceil(maxY / 2), maxY];
+
+          return (
+            <section
+              className="surface"
+              onMouseMove={handleTooltipMove}
+              onMouseLeave={handleTooltipLeave}
+            >
+              <div className="surface-header">
+                <h2>Trend über Runs</h2>
+                <span className="meta">{trendData.length} abgeschlossene Runs</span>
+              </div>
+              <div className="trend-chart-wrap">
+                <svg viewBox={`0 0 ${width} ${height}`} className="trend-chart">
+                  {/* Y gridlines */}
+                  {yTicks.map((t) => (
+                    <g key={t}>
+                      <line
+                        x1={padding.left}
+                        x2={width - padding.right}
+                        y1={yScale(t)}
+                        y2={yScale(t)}
+                        stroke="var(--line)"
+                        strokeDasharray="2 4"
+                      />
+                      <text
+                        x={padding.left - 8}
+                        y={yScale(t)}
+                        textAnchor="end"
+                        dominantBaseline="central"
+                        style={{ fontSize: "0.7rem", fill: "var(--ink-faint)" }}
+                      >
+                        {t}
+                      </text>
+                    </g>
+                  ))}
+                  {/* X labels: first, middle, last */}
+                  {trendData.map((d, i) => {
+                    if (trendData.length > 4 && i !== 0 && i !== trendData.length - 1 && i !== Math.floor(trendData.length / 2)) {
+                      return null;
+                    }
+                    return (
+                      <text
+                        key={d.run_id}
+                        x={xScale(i)}
+                        y={height - padding.bottom + 16}
+                        textAnchor="middle"
+                        style={{ fontSize: "0.7rem", fill: "var(--ink-faint)" }}
+                      >
+                        {new Date(d.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                      </text>
+                    );
+                  })}
+                  {/* Lines */}
+                  <path d={linePath("cases")} stroke="var(--ink-faint)" fill="none" strokeWidth={2} />
+                  <path d={linePath("signals")} stroke="var(--accent)" fill="none" strokeWidth={2} />
+                  <path d={linePath("validated")} stroke="var(--ok)" fill="none" strokeWidth={2.5} />
+                  {/* Points with hover tooltips */}
+                  {trendData.map((d, i) => {
+                    const ts = new Date(d.created_at).toLocaleString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                    const tip = `Run vom ${ts}\nCases gesamt: ${d.cases}\nals Signal: ${d.signals}\nvalidiert: ${d.validated}\nRun-ID: ${d.run_id}`;
+                    return (
+                      <g key={d.run_id} style={{ cursor: "help" }} data-tip={tip}>
+                        {/* Invisible larger hit-area for easier hover */}
+                        <rect
+                          x={xScale(i) - 18}
+                          y={padding.top}
+                          width={36}
+                          height={innerH}
+                          fill="transparent"
+                        />
+                        <circle cx={xScale(i)} cy={yScale(d.cases)} r={2.5} fill="var(--ink-faint)" />
+                        <circle cx={xScale(i)} cy={yScale(d.signals)} r={2.5} fill="var(--accent)" />
+                        <circle cx={xScale(i)} cy={yScale(d.validated)} r={3.5} fill="var(--ok)" />
+                      </g>
+                    );
+                  })}
+                </svg>
+                <div className="trend-legend">
+                  <div className="trend-legend-row">
+                    <span className="trend-legend-line" style={{ background: "var(--ink-faint)" }} />
+                    <span>Cases gesamt</span>
+                  </div>
+                  <div className="trend-legend-row">
+                    <span className="trend-legend-line" style={{ background: "var(--accent)" }} />
+                    <span>als Signal klassifiziert</span>
+                  </div>
+                  <div className="trend-legend-row">
+                    <span className="trend-legend-line" style={{ background: "var(--ok)" }} />
+                    <span>vom Expert validiert</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        })() : null}
+
         {/* Cases */}
         <section className="surface">
           <div className="surface-header">
             <h2>Signal / Noise Review</h2>
-            <span className="meta">
-              {filteredCases.length === cases.length
-                ? `${cases.length} Cases`
-                : `${filteredCases.length} von ${cases.length} Cases`}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <span className="meta">
+                {filteredCases.length === cases.length
+                  ? `${cases.length} Cases`
+                  : `${filteredCases.length} von ${cases.length} Cases`}
+              </span>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => exportCases("csv")}
+                disabled={cases.length === 0}
+                title="Cases als CSV exportieren (für Reports oder Übergabe an Gruppe 12)"
+              >
+                ↓ CSV
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => exportCases("json")}
+                disabled={cases.length === 0}
+                title="Cases als JSON exportieren (vollständige Datenstruktur)"
+              >
+                ↓ JSON
+              </button>
+            </div>
           </div>
 
           {cases.length === 0 ? (
@@ -798,7 +1416,14 @@ export default function HomePage() {
                       <article key={item.case_id} className={`case${needsReview ? " awaiting" : ""}`}>
                     <div className="case-head">
                       <div>
-                        <div className="case-title">{item.title}</div>
+                        <button
+                          type="button"
+                          className="case-title case-title-button"
+                          onClick={() => setDetailCaseId(item.case_id)}
+                          title="Vollansicht öffnen"
+                        >
+                          {item.title}
+                        </button>
                         <div className="case-meta">
                           <span>Keyword: {item.keyword}</span>
                           <span>Confidence: {Math.round(item.confidence * 100)}%</span>
@@ -807,6 +1432,14 @@ export default function HomePage() {
                         </div>
                       </div>
                       <div className="case-pills">
+                        {item.seen_count && item.seen_count > 1 ? (
+                          <span
+                            className="pill neutral history-pill"
+                            title={`URL bekannt aus ${item.seen_count} Runs seit ${item.first_seen_at ? new Date(item.first_seen_at).toLocaleDateString("de-DE") : "?"}`}
+                          >
+                            ↻ {item.seen_count}× seit {item.first_seen_at ? new Date(item.first_seen_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : "?"}
+                          </span>
+                        ) : null}
                         {item.pestel_category ? (
                           <span className="pill neutral" title={PESTEL_LABEL[item.pestel_category]}>
                             {item.pestel_category}
@@ -954,6 +1587,160 @@ export default function HomePage() {
           )}
         </section>
       </main>
+
+      {(() => {
+        if (!detailCaseId) return null;
+        const item = cases.find((c) => c.case_id === detailCaseId);
+        if (!item) return null;
+        const dims = item.zieldreieck_dimensions || [];
+        return (
+          <div
+            className="modal-backdrop"
+            onClick={() => setDetailCaseId(null)}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <div className="modal-eyebrow">Case · {item.keyword}</div>
+                  <h2 className="modal-title">{item.title}</h2>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close"
+                  onClick={() => setDetailCaseId(null)}
+                  title="Schließen (Esc)"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="modal-meta">
+                <span className="kbd">{item.case_id}</span>
+                <span>Confidence: {Math.round(item.confidence * 100)}%</span>
+                <span>Ansoff L{item.ansoff_level}</span>
+                {item.seen_count && item.seen_count > 1 ? (
+                  <span>
+                    Wiederkehrend · {item.seen_count}× seit{" "}
+                    {item.first_seen_at
+                      ? new Date(item.first_seen_at).toLocaleDateString("de-DE")
+                      : "?"}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="modal-pills">
+                {item.pestel_category ? (
+                  <span className="pill neutral">
+                    {item.pestel_category} · {PESTEL_LABEL[item.pestel_category]}
+                  </span>
+                ) : null}
+                <span className={item.is_signal ? "pill ok" : "pill neutral"}>
+                  {item.is_signal ? "Signal" : "Noise"}
+                </span>
+                <span className={statusPillClass(item.validation_status)}>
+                  {item.validation_status}
+                </span>
+                {item.systemic_impact ? (
+                  <span
+                    className={
+                      item.systemic_impact === "HOCH"
+                        ? "pill warn"
+                        : item.systemic_impact === "GERING"
+                        ? "pill neutral"
+                        : "pill neutral"
+                    }
+                  >
+                    Impact: {item.systemic_impact}
+                  </span>
+                ) : null}
+                {item.time_horizon ? (
+                  <span className="pill neutral">{item.time_horizon}</span>
+                ) : null}
+                {item.expert_valid === false ? (
+                  <span className="pill bad">unplausibel</span>
+                ) : item.expert_valid === true ? (
+                  <span className="pill ok">plausibel</span>
+                ) : null}
+              </div>
+
+              {dims.length > 0 ? (
+                <div className="modal-tags">
+                  {dims.map((d) => (
+                    <span key={d} className="pill neutral" style={{ fontSize: "0.72rem" }}>
+                      {ZIELDREIECK_LABEL[d] || d}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              <section className="modal-section">
+                <h3>Rationale</h3>
+                <p>{item.rationale}</p>
+              </section>
+
+              {item.expert_comment ||
+              (item.zieldreieck_impact && Object.keys(item.zieldreieck_impact).length > 0) ? (
+                <section className="modal-section">
+                  <h3>Energy Expert</h3>
+                  {item.expert_comment ? <p>{item.expert_comment}</p> : null}
+                  {item.zieldreieck_impact && Object.keys(item.zieldreieck_impact).length > 0 ? (
+                    <dl className="modal-zd">
+                      {Object.entries(item.zieldreieck_impact).map(([dim, text]) => (
+                        <div key={dim} className="modal-zd-row">
+                          <dt>{ZIELDREIECK_LABEL[dim] || dim}</dt>
+                          <dd>{text}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                </section>
+              ) : null}
+
+              <section className="modal-section">
+                <h3>Quellen ({item.sources.length})</h3>
+                <ul className="modal-sources">
+                  {item.sources.map((source, index) => (
+                    <li key={`${item.case_id}_${index}`}>
+                      <a href={source.url} target="_blank" rel="noreferrer">
+                        {source.title}
+                      </a>
+                      <div className="meta" style={{ marginTop: "0.2rem" }}>
+                        {source.snippet}
+                      </div>
+                      <div className="meta">
+                        Trust {source.trust_score} · {source.published_at || "—"}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              {item.reviewer_comment ? (
+                <section className="modal-section">
+                  <h3>Reviewer-Kommentar</h3>
+                  <p>{item.reviewer_comment}</p>
+                  {item.reviewed_by ? (
+                    <div className="meta" style={{ marginTop: "0.3rem" }}>
+                      {item.reviewed_by} ·{" "}
+                      {item.reviewed_at ? new Date(item.reviewed_at).toLocaleString("de-DE") : ""}
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+            </div>
+          </div>
+        );
+      })()}
+
+      {tooltip ? (
+        <div className="custom-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
+          {tooltip.text.split("\n").map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
+      ) : null}
     </>
   );
 }

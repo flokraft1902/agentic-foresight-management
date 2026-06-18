@@ -8,10 +8,11 @@ from app.crew_layer import (
     Classification,
     ExpertValidation,
     classify_case,
+    suggest_search_terms,
     summarize_stage,
     validate_case_expert,
 )
-from app.data_store import get_search_terms, upsert_cases, upsert_run
+from app.data_store import get_search_terms, lookup_url_history, upsert_cases, upsert_run
 from app.models import SignalCase, SourceItem, WorkflowRun, WorkflowStep
 from app.sources import search_sources
 
@@ -169,6 +170,18 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
         else:
             heuristic_count += 1
 
+        prior_run_id, prior_at, prior_count = lookup_url_history(
+            source.url, exclude_run_id=run.run_id
+        )
+        if prior_count == 0:
+            first_seen_run_id = run.run_id
+            first_seen_at = run.created_at
+            seen_count = 1
+        else:
+            first_seen_run_id = prior_run_id
+            first_seen_at = prior_at
+            seen_count = prior_count + 1
+
         case = SignalCase(
             case_id=f"case_{uuid4().hex[:10]}",
             run_id=run.run_id,
@@ -182,6 +195,9 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
             zieldreieck_dimensions=list(classification.zieldreieck_dimensions),
             validation_status="pending",
             sources=[source],
+            first_seen_run_id=first_seen_run_id,
+            first_seen_at=first_seen_at,
+            seen_count=seen_count,
         )
         cases.append(case)
 
@@ -382,6 +398,21 @@ def _run_scenario_step(run: WorkflowRun, cases: list[SignalCase]) -> None:
                 "summary": scenario_summary.text,
             },
         },
+    )
+
+    # Suggest follow-up search terms based on validated cases.
+    run.suggested_search_terms = suggest_search_terms(
+        focus=run.focus,
+        existing_terms=list(run.search_terms),
+        validated_cases=[
+            {
+                "keyword": c.keyword,
+                "title": c.title,
+                "pestel_category": c.pestel_category,
+                "ansoff_level": c.ansoff_level,
+            }
+            for c in validated_cases
+        ],
     )
 
     run.status = "completed"
