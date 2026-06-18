@@ -2,48 +2,36 @@
 
 Integrationsseminar DHBW Stuttgart, Gruppe 11.
 
-Multi-Agenten-Foresight-System für das automatisierte Erkennen von Weak Signals
-in der Energieökonomik mit Human-in-the-Loop-Review.
+Multi-Agenten-Foresight-System für das automatisierte Erkennen energiewirtschaftlicher
+Weak Signals mit Human-in-the-Loop-Review.
 
 ## Repository-Struktur
 
-Das Projekt hat **zwei parallele Implementationen** derselben Architektur — den
-gleichen Workflow (Scanning → Assessment → Energy Expert → Scenario Integration),
-einmal als n8n-Orchestrierung, einmal als Python/CrewAI-Backend:
-
 ```
 .
-├── n8n/                          n8n-Workflow-Exporte (JSON)
-│   ├── coordinator-agent         Main-Workflow mit Schedule-Trigger
-│   ├── scanning-agent            Sub-Workflows pro Stage
-│   ├── assessment-agent
-│   ├── energy-expert-agent
-│   ├── scenario-agent
-│   └── hitl-review-callback      Human-in-the-Loop-Callback
-│
-├── crewai/                       Python/FastAPI-Backend (aktive Entwicklung)
-│   ├── app/                      FastAPI + Workflow-Implementierung
-│   ├── data/                     state.json (JSON-Store)
-│   └── README.md
+├── crewai/                      Python/FastAPI-Backend
+│   ├── app/                       LiteLLM-basierte Multi-Agent-Pipeline
+│   │                              Scanning → Assessment → Energy Expert
+│   │                              → (HITL) → Scenario Integration
+│   ├── data/                      JSON-Flat-File-Store (state.json)
+│   └── README.md                  Setup + Start
 │
 ├── ui/
-│   ├── workflow-console/         Next.js-UI zum CrewAI-Backend
-│   │                             (Live-Timeline, KPIs, Run-History, Review)
-│   └── review-console/           Standalone-Review-UI (n8n-Anbindung)
+│   └── workflow-console/        Next.js-15-Frontend (TypeScript, App-Router)
+│       ├── app/                   Page + API-Proxy-Routes
+│       ├── components/            Section-Komponenten (Topbar, Charts, …)
+│       ├── lib/                   Helpers (Labels, useTooltip, exportReport, …)
+│       └── README.md              Setup + Start
 │
-├── docs/
-│   └── HITL_UI_Integration.md    Spezifikation HITL & Audit
-│
-├── MAS_Foresight_Architektur.md  Designdoc (Seminararbeit, n8n-Architektur)
-├── WORKFLOW_ARCHITECTURE.md      Aktive Doku für CrewAI-Implementation
-└── README.md                     (diese Datei)
+├── MAS_Foresight_Architektur.md Methodisch-konzeptionelle Spezifikation
+│                                  (System Prompts, Ansoff, Zieldreieck,
+│                                  energiewirtschaftliches Wissens-Framework)
+├── WORKFLOW_ARCHITECTURE.md     Implementations-Architektur des Backends
+│                                  (Endpoints, Datenfluss, Streaming, Polling)
+└── README.md                    Diese Datei
 ```
 
 ## Schnellstart
-
-### Variante A: CrewAI-Backend + Workflow Console (lokal, kein n8n)
-
-Empfohlen für Entwicklung und schnelles Iterieren.
 
 **1) Backend starten:**
 
@@ -53,11 +41,12 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Key in .env eintragen (LLM_API_KEY), ggf. LLM_MODEL anpassen
+# In .env eintragen: LLM_API_KEY (OpenRouter / Google AI Studio / Anthropic)
+# und LLM_MODEL anpassen (Default: openrouter/google/gemini-2.5-flash-lite)
 .venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-**2) UI starten:**
+**2) UI starten (zweites Terminal):**
 
 ```bash
 cd ui/workflow-console
@@ -65,76 +54,79 @@ npm install
 npm run dev
 ```
 
-UI: http://localhost:3000 — Backend-Docs: http://127.0.0.1:8000/docs
+- UI: <http://localhost:3000>
+- Backend-OpenAPI-Docs: <http://127.0.0.1:8000/docs>
 
-Details: `crewai/README.md` und `ui/workflow-console/README.md`.
-
-### Variante B: n8n-Workflows (self-hosted)
-
-Originaler Entwurf aus der Seminararbeit. Verwendet Gemini Pro / GPT-4o via
-n8n-Nodes, SerpAPI/Tavily für Web Search, optional Airtable als Persistenz.
-
-**n8n lokal mit Docker** (Rancher Desktop unter Windows):
-
-```powershell
-docker run -it --rm `
-  --name n8n `
-  -p 5678:5678 `
-  -e GENERIC_TIMEZONE="Europe/Berlin" `
-  -e TZ="Europe/Berlin" `
-  -e N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true `
-  -e N8N_RUNNERS_ENABLED=true `
-  -v n8n_data:/home/node/.n8n `
-  docker.n8n.io/n8nio/n8n
-```
-
-n8n: http://localhost:5678
-
-Die sechs Workflow-Dateien aus `n8n/` per "Import from file" in die UI laden
-(Reihenfolge egal). Workflow-IDs in den `toolWorkflow`-Nodes müssen nach dem
-Import auf die neu vergebenen IDs aktualisiert werden — Detail im
-`MAS_Foresight_Architektur.md`, Abschnitt 13.
-
-## Dedizierte Review-UIs
-
-Zwei Frontends im Repo, beide Next.js:
-
-- **`ui/workflow-console`** — primäres UI zum CrewAI-Backend. Live-Timeline mit
-  Progress-Bars für Assessment und Expert, Streaming der LLM-Summaries,
-  Run-History, Case-Filter mit Awaiting-Highlight, HITL-Banner mit
-  Resume-Button, Signal/Noise-Review mit PESTEL- und Zieldreieck-Badges.
-- **`ui/review-console`** — Standalone-Oberfläche für die n8n-Variante
-  (HITL-Queue, Audit-Trail). Beschreibung in `docs/HITL_UI_Integration.md`.
+Setup-Details: [`crewai/README.md`](crewai/README.md) und
+[`ui/workflow-console/README.md`](ui/workflow-console/README.md).
 
 ## Architektur in Kürze
 
-Beide Implementationen folgen demselben Coordinator-Worker-Delegator-Modell aus
-der Seminararbeit:
+Coordinator-Worker-Delegator-Modell mit vier sequentiellen Stages und einem
+optionalen Human-in-the-Loop-Gate:
 
 ```
-Coordinator
-   ├── Scanning Agent        (Environmental Scanning, PESTEL)
-   ├── Assessment Agent      (Ansoff Weak-Signal-Klassifikation)
-   ├── Energy Expert Agent   (Domänen-Validierung, Hallucination-Guard)
-   └── Scenario Agent        (Strategic Alert, Szenario-Trichter)
+┌─ Scanning Agent          Environmental Scanning · RSS + DuckDuckGo
+│                          → SourceItems (Title, Snippet, URL, Trust-Score)
+│
+├─ Assessment Agent        Signal/Noise + PESTEL + Ansoff Weak-Signal-Skala
+│                          + Zieldreieck-Tags · LLM mit Heuristik-Fallback
+│
+├─ Energy Expert Agent     Domain-Check: Merit-Order, Missing-Money,
+│                          Kannibalisierung, Netzphysik. Outputs systemic
+│                          impact, time horizon, Zieldreieck-Wirkung.
+│
+│  ─── HITL Gate ─────────  Cases mit Confidence < 0.72 landen in
+│                          `awaiting_review`. Workflow pausiert bis
+│                          alle Cases approved/rejected sind.
+│
+└─ Scenario Integration    Strategic Alerts aus den validierten Cases,
+                           plus Auto-Suggestion für nächste Suchbegriffe.
 ```
 
-Vollständige Spezifikation mit System-Prompts, Datenstrukturen und
-Schnittstellen: `MAS_Foresight_Architektur.md`.
+Vollständige Methodologie (System Prompts, Ansoff-Skala, energiewirtschaftliches
+Wissens-Framework, Szenario-Trichter): [`MAS_Foresight_Architektur.md`](MAS_Foresight_Architektur.md).
 
-Implementations-Architektur des CrewAI-Backends (Endpoints, Datenfluss,
-Streaming, Polling): `WORKFLOW_ARCHITECTURE.md`.
+Implementations-Architektur (FastAPI-Endpoints, LiteLLM-Streaming, 750-ms-Polling,
+Persistenz, Frontend-Komponenten): [`WORKFLOW_ARCHITECTURE.md`](WORKFLOW_ARCHITECTURE.md).
 
-## Hosting-Optionen
+## Highlight-Features der Workflow Console
 
-| Track | Selbst gehostet | Kosten |
-|---|---|---|
-| CrewAI-Backend | uvicorn (lokal oder Container) | Compute + LLM-API |
-| n8n | Docker (lokal) oder n8n.cloud | ca. 5 €/Monat self-hosted |
-| LLM | OpenRouter / Google AI Studio / Anthropic | Pay-per-token |
+- **Live-Timeline** mit Streaming der LLM-Stage-Summaries (Markdown-gerendert
+  mit blinkendem Caret) und Echtzeit-Fortschrittsanzeigen für Assessment und
+  Expert
+- **Analyse-Dashboard** mit vier Charts: PESTEL-Verteilung, Ansoff Weak-Signal-Level,
+  systemischer Impact (Donut), Zieldreieck-Coverage
+- **Trend-Chart** über alle abgeschlossenen Runs (Cases / Signale / Validiert)
+- **Run-History** mit Reset + Cross-Run-URL-Dedup (Quellen aus früheren Runs
+  werden als wiederkehrend markiert)
+- **HITL-Banner** mit Resume-Button, sobald der Energy Expert unsichere Cases
+  ans Human-Review delegiert
+- **Signal/Noise-Review** mit Filter-Chips, Volltext-Suche, Detail-Modal,
+  Korrektur-Form und instant Tooltips auf jedem Badge
+- **Auto-Suggestion** der nächsten Suchbegriffe (LLM analysiert validierte
+  Cases und schlägt verwandte Themen vor — als Chips zum Annehmen)
+- **Drei Export-Formate**: CSV (Reports), JSON (Übergabe an Gruppe 12),
+  PDF Foresight Report (Präsentation, Verteidigung)
 
-LLM-Keys aus Gemini-Pro- oder Claude-Abos können wiederverwendet werden.
-Agenten/Workflows sollen als Code in diesem Repository persistiert bleiben.
+## Tech-Stack
+
+| Bereich  | Technologie |
+|---|---|
+| Backend  | Python 3.11, FastAPI, Pydantic v2 |
+| LLM      | LiteLLM (Provider-agnostisch — getestet mit Gemini Flash Lite via OpenRouter) |
+| Quellen  | feedparser (RSS), `ddgs` (DuckDuckGo Site-Search) |
+| Persistenz | JSON-Flat-File (`crewai/data/state.json`) |
+| Frontend | Next.js 15 (App-Router), TypeScript, React 19 |
+| Charts   | Native SVG, kein Chart-Framework |
+| PDF      | jsPDF (client-side) |
+
+## Hosting
+
+Komplett selbst gehostet. Backend (`uvicorn`) und UI (`next dev`) laufen lokal.
+LLM-Calls gehen direkt vom Backend an den konfigurierten Provider — keine
+zusätzliche Cloud-Komponente nötig. Variable Kosten ausschließlich für
+LLM-Tokens (typisch wenige Cents pro Run).
 
 ## Autoren
 

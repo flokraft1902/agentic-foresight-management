@@ -1,16 +1,22 @@
-# CrewAI Foresight Workflow — Architektur & Datenfluss
+# Foresight Workflow — Architektur & Datenfluss
 
-Aktualisiert nach Umstellung auf RSS+DuckDuckGo-basiertes Scanning,
-LLM-Klassifikation mit PESTEL+Zieldreieck, LLM-Energy-Expert mit
-systemischem Impact und Zieldreieck-Detailtexten, Streaming-Summaries,
-asynchronem Run mit Polling und HITL-Pause+Resume.
+Implementations-Architektur des Backends (`crewai/`) und Frontends
+(`ui/workflow-console/`). Aktualisiert nach Umstellung auf RSS+DuckDuckGo-
+basiertes Scanning, LLM-Klassifikation mit PESTEL+Zieldreieck, LLM-Energy-
+Expert mit systemischem Impact, Streaming-Summaries (mit Markdown-Rendering
+und blinkendem Caret), asynchronem Run mit 750-ms-Polling, HITL-Pause+Resume,
+Auto-Search-Suggestions, Cross-Run-URL-Dedup, vier Analyse-Charts plus
+Trend-Chart, sowie Export als CSV / JSON / PDF-Report.
+
+> Konzeptionelle Spezifikation der Agenten und Methodologie:
+> [`MAS_Foresight_Architektur.md`](MAS_Foresight_Architektur.md).
 
 ## System-Übersicht
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        FORESIGHT WORKFLOW SYSTEM                            │
-│                      (CrewAI Backend + Next.js Frontend)                    │
+│                  (Python/FastAPI Backend + Next.js Frontend)                │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,10 +46,11 @@ asynchronem Run mit Polling und HITL-Pause+Resume.
                                       │
    ┌──────────────────────────┐      │
    │  Run-Übersicht (KPIs)    │ ◄────┤──────── GET /api/workflow/{run_id}
-   │  Timeline (live)         │      │      (Poll alle 1.5s)
+   │  Timeline (live)         │      │      (Poll alle 750ms)
    │  Streaming-Cursor        │      │
    │  Progress-Bars (Assess,  │      │
    │   Expert)                │      │
+   │  Foresight-Report-Export │      │
    └──────────────────────────┘      │
                                       │
    ┌──────────────────────────┐      │
@@ -58,11 +65,22 @@ asynchronem Run mit Polling und HITL-Pause+Resume.
    └──────────────────────────┘
 
    ┌──────────────────────────┐
+   │  Analyse-Dashboard       │
+   │  - PESTEL-Verteilung     │ ◄─── (clientseitig aus cases berechnet)
+   │  - Ansoff Level Chart    │
+   │  - Systemic Impact Donut │
+   │  - Zieldreieck-Coverage  │
+   │  - Trend über Runs       │
+   └──────────────────────────┘
+
+   ┌──────────────────────────┐
    │  Signal/Noise-Review     │
    │  + Filter-Chips          │
    │  + Search                │
    │  + PESTEL/Zieldreieck    │ ──────────► PUT /api/cases/{case_id}/review
    │  + Energy-Expert-Block   │       JSON: { is_signal, comment, ... }
+   │  + Detail-Modal          │
+   │  + Export CSV/JSON/PDF   │ ──────────► (client-side, kein Backend)
    └──────────────────────────┘
 ```
 
@@ -255,10 +273,17 @@ summarize_stage(stage_name, objective, payload, on_chunk=emitter)
    └──────────────┬───────────────┘
                   │ writes to state.json
                   ▼
-   UI Polling sieht im nächsten Tick:
+   UI Polling sieht im nächsten Tick (750ms):
    • Streaming-Pille + pulsierender Dot
-   • Step-Summary mit blinkendem ▍ am Ende
-   • Text wächst sichtbar mit
+   • Eyebrow "AGENT SUMMARY · streaming" in Akzent-Grün
+   • Step-Summary mit grünem Linker-Balken + Gradient
+   • Markdown-gerenderte Headings + Bullets (kein "##"-Roh-Text)
+   • Blinkender ▌-Caret am Ende
+   • Text wächst sichtbar mit, Auto-Scroll im Container
+
+Pre-emit: Der Emitter setzt `streaming: true` bereits beim Setup (vor dem
+ersten LLM-Chunk), damit auch kurze Stage-Summaries (Scanning, Assessment,
+Expert: ~2-3s) zuverlässig im UI-Polling-Fenster erscheinen.
 ```
 
 ---
@@ -568,13 +593,13 @@ T=0.0s   POST /workflow/start
          → Backend: Thread startet execute_run()
          → Response: { run, cases: [] }  (sofort, ~50ms)
 
-T=0.0s   UI startet setInterval(poll, 1500)
-T=1.5s   GET /workflow/{run_id}  → scanning läuft, 1. Step pulsiert gelb
-T=3.0s   GET ...                 → scanning done, assessment läuft
-T=4.5s   GET ...                 → assessment.detail.progress: 3/12
+T=0.0s   UI startet setInterval(poll, 750)
+T=0.75s  GET /workflow/{run_id}  → scanning läuft, 1. Step pulsiert gelb
+T=1.5s   GET ...                 → scanning done, assessment läuft
+T=2.25s  GET ...                 → assessment.detail.progress: 3/12
                                    step-summary growing, streaming-pill aktiv
-T=6.0s   GET ...                 → assessment.detail.progress: 6/12
-                                   (alle 4. Tick auch: GET /workflow → Liste)
+T=3.0s   GET ...                 → assessment.detail.progress: 6/12
+                                   (alle 8. Tick auch: GET /workflow → Liste)
 T=Nx     GET ...                 → expert.detail.progress: 5/12 validated
 T=Mx     GET ...                 → status=awaiting_review (HITL fired)
          → UI stoppt Polling, zeigt Banner + Review-Chip pulsiert
@@ -593,9 +618,47 @@ T=Px     GET ...                 → status=completed
 
 ---
 
+## Frontend-Struktur (nach Komponenten-Refactor)
+
+Das Frontend ist in fokussierte Section-Komponenten aufgeteilt, `page.tsx`
+ist reine Orchestrierung (State, Effects, Fetch-Handler, Komposition):
+
+```
+ui/workflow-console/
+├── app/
+│   ├── page.tsx              ← Orchestrator (~630 Zeilen)
+│   ├── layout.tsx
+│   └── api/                  ← Next-Server-Routes als Proxy zu FastAPI
+│
+├── components/
+│   ├── Topbar.tsx            Brand + LLM-Health-Pill
+│   ├── ConfigCard.tsx        Suchbegriffe, Fokus, Auto-Search-Suggestions
+│   ├── RunOverviewCard.tsx   KPIs + Report-Export-Button
+│   ├── HitlBanner.tsx        Pause-Banner mit Resume-Button
+│   ├── RunHistoryCard.tsx    Liste vergangener Runs
+│   ├── WorkflowTimeline.tsx  Steps + Streaming-Visual + Agent-Summary
+│   ├── AnalyseCharts.tsx     PESTEL / Ansoff / Donut / Zieldreieck
+│   ├── TrendChart.tsx        SVG-Linienchart über Runs
+│   ├── CaseCard.tsx          Eine Case-Karte mit Badges + Korrektur-Form
+│   ├── CaseModal.tsx         Detail-Vollansicht
+│   ├── CasesSection.tsx      Filter + Search + Export + Case-Grid
+│   └── CustomTooltip.tsx     Floating Tooltip-Layer (instant)
+│
+└── lib/
+    ├── types.ts              Shared TS-Interfaces (mirror Pydantic)
+    ├── labels.ts             PESTEL / Ansoff / Impact / Zieldreieck-Strings
+    ├── stepHelpers.ts        statusPillClass, stepProgressInfo, ...
+    ├── renderStageSummary.tsx Mini-Markdown-Renderer für Stage-Summaries
+    ├── useTooltip.tsx        Hook: { tooltip, onMouseMove, onMouseLeave }
+    ├── exportReport.ts       jsPDF-basierter Foresight-Report-Export
+    └── backend.ts            Backend-URL-Helper
+```
+
+---
+
 ## Roadmap / Improvement Backlog
 
-### ✅ Erledigt seit Initialversion
+### ✅ Erledigt
 
 - **Hybrid-Scanning** (RSS + DuckDuckGo Site-restricted Queries für deutsche
   Quellen, synthetischer Fallback)
@@ -603,48 +666,73 @@ T=Px     GET ...                 → status=completed
   PESTEL-Kategorie und Zieldreieck-Dimensionen
 - **LLM-Energy-Expert** mit Energiedomänen-Framework, liefert
   `systemic_impact`, `time_horizon` und Detailtexte pro Zieldreieck-Dimension
-- **Streaming der Stage-Summaries** mit Live-Cursor in der UI
-- **Asynchroner Workflow** mit Polling (statt Block-bis-fertig)
+- **Streaming der Stage-Summaries** mit Live-Cursor, Eyebrow-Label und
+  Markdown-Rendering (Headings + Bullets statt "##"-Rohtext)
+- **Asynchroner Workflow** mit 750-ms-Polling (statt Block-bis-fertig)
 - **Run History** (`GET /workflow`, klickbare Liste, History-Reset)
 - **LLM-Health-Endpoint** mit Live-Pill in der UI
 - **HITL-Pause + Resume**: Workflow stoppt automatisch bei mittlerer
-  Confidence; `POST /workflow/{run_id}/resume` setzt nach dem Review fort
-- **Case-Filterung + Awaiting-Highlight** in der Review-UI
+  Confidence; `POST /workflow/{run_id}/resume` setzt nach dem Review fort.
+  Button deaktiviert sofort beim Klick, um Doppel-Trigger zu verhindern.
+- **Case-Filterung + Awaiting-Highlight** + Volltext-Suche im Review-UI
 - **Progress-Bars** in Assessment und Expert
+- **Cross-Run-URL-Dedup** — pro Case-URL `seen_count` + `first_seen_at`,
+  Badge "↻ N× seit DATUM" auf wiederkehrenden Quellen
+- **Vier Analyse-Charts** — PESTEL-Verteilung, Ansoff-Level, Systemischer
+  Impact (Donut), Zieldreieck-Coverage, mit instant Tooltips auf jeder
+  Komponente. Plus separater Trend-Chart über abgeschlossene Runs.
+- **Auto-Search-Term-Suggestions** vom LLM basierend auf validierten Signalen
+  (Chips in der Konfiguration zum Annehmen)
+- **Export** — Cases als CSV (Excel/Reports), JSON (Gruppe-12-Dashboard) und
+  PDF-Foresight-Report (Präsentation/Verteidigung, jsPDF, client-side)
+- **Detail-Modal** für Cases mit ESC-Close, Pfeiltasten-Navigation würde
+  hinzukommen (offen)
+- **Frontend-Refactor** in `components/` + `lib/` (page.tsx von 1969 auf
+  ~630 Zeilen, 13 Komponenten)
 
 ### Offen — hohe Priorität
 
-- **Cross-Run-Dedup** — pro Case prüfen ob die URL in vorherigen Runs schon
-  klassifiziert wurde; Badge "Neu" / "Wiederkehrend (3× seit …)" anzeigen.
-- **Charts** — Confidence-Verteilung, Ansoff-Heatmap, PESTEL-Donut,
-  Systemic-Impact-Verteilung, Signale-Trend über Runs.
-- **Token-Cost / Latency-Metriken** pro Step via LiteLLM `usage` und Cost.
+- **Token-Cost / Latency-Metriken** pro Stage via LiteLLM `usage` und
+  Cost — würde "ein Standard-Run kostet X Cents und dauert Y Sek"
+  auditierbar machen
+- **Confidence-Histogramm** — fünfter Chart, zeigt Verteilung der
+  Diagnose-Sicherheit über Buckets
+- **Hallucination-Check pro Case** — Zusatz-LLM-Call prüft, ob die
+  Rationale aus dem Source-Snippet ableitbar ist; markiert verdächtige
+  Cases mit `hallucination_risk`-Flag
 
 ### Offen — mittlere Priorität
 
-- **Auto-Search-Term-Suggestions** vom LLM basierend auf validierten Signalen.
-- **Echter Multi-Agent-Crew** — `Crew(agents=[Scanner, Assessor, Expert,
-  Planner])` mit Delegation. Trade-off: würde Streaming und granuläre
-  Progress-Updates verlieren; aktuelle Lösung ist konzeptionell schon
-  multi-agentig.
-- **Export** — Cases/Strategic-Alerts als CSV/JSON/PDF.
+- **Run-Diff** — zwei Runs nebeneinander vergleichen (welche Cases neu,
+  welche verschwunden, welche Themen wachsen)
 - **Bulk-Actions** — "Alle Signals > 0.85 approven", "Alle Domain-rejected
-  verwerfen".
-- **Deutsche RSS-Quellen** direkt einbinden (BMWK/Heise/pv-magazine sind
-  per direktem Fetch bot-blockiert; DDG-Workaround läuft bereits).
-- **SQLite statt state.json** — Indizes, Queries, Concurrency.
+  verwerfen"
+- **Saved Configurations** — Such-Begriffs-Presets ("Energiespeicher-
+  Monitoring") speicher- und wiederabrufbar
+- **Inline Approve/Reject** + Pfeiltasten-Navigation im Modal — UX-Komfort
+  beim HITL-Review bei vielen Cases
+- **Sticky Filter-Bar** im Cases-Section
+- **Backup/Restore der state.json** — Ein-Klick-Export/Import für Demos
+- **Per-Term-Yield-Statistik** — welche Suchbegriffe produzieren mehr
+  validierte Signale
+- **SQLite statt state.json** — Indizes, Queries, Concurrency
 
 ### Offen — niedrige Priorität
 
+- **Type-Sharing Backend↔Frontend** via OpenAPI-Schema → TypeScript
+  (Pydantic ist Source-of-Truth, TS-Types werden generiert statt manuell
+  gepflegt)
+- **Tests** (pytest/vitest) für `crew_layer`, `sources`, `workflow` und
+  Frontend-Filter-/Sort-Logik
 - **Notifications** (E-Mail/Slack) bei completed Runs mit
-  `systemic_impact=HOCH`.
-- **Tests** (Unit/Integration) für `crew_layer`, `sources`, `workflow`.
-- **Auth** auf den FastAPI-Endpunkten.
-- **CORS** restriktiver konfigurieren (aktuell `allow_origins=["*"]`).
+  `systemic_impact=HOCH`
+- **Cron / Scheduled Runs** — automatischer wöchentlicher Run
+- **Auth** auf den FastAPI-Endpunkten
+- **CORS** restriktiver konfigurieren (aktuell `allow_origins=["*"]`)
 
 ---
 
-**Stand:** 2026-06-17
-**System:** CrewAI (Python/FastAPI) + Workflow Console (Next.js)
-**Persistenz:** flat JSON (`data/state.json`)
+**Stand:** 2026-06-18
+**System:** Python/FastAPI Backend + Next.js Workflow Console
+**Persistenz:** flat JSON (`crewai/data/state.json`)
 **LLM-Provider:** beliebiges LiteLLM-kompatibles Modell, default OpenRouter

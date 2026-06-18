@@ -1,46 +1,21 @@
-# AI-Driven Foresight: Multi-Agenten-System in n8n
-## Architektur-Dokumentation & System Prompts
+# AI-Driven Foresight: Multi-Agenten-System für Weak-Signal-Detektion
+## Konzept, System Prompts & Methodisches Rahmenwerk
 
-**Projekt:** Integrationsseminar – DHBW Stuttgart, Gruppe 11  
-**Autoren:** Florian Kraft, Nandor Varga, Thorben Ries, Felix Bayer  
-**Version:** 1.0 | Stand: Juni 2025  
+**Projekt:** Integrationsseminar – DHBW Stuttgart, Gruppe 11
+**Autoren:** Florian Kraft, Nandor Varga, Thorben Ries, Felix Bayer
+**Version:** 2.0 | Stand: Juni 2026
 
 ---
 
-> **Hinweis zur Implementation:** Dieses Dokument beschreibt die ursprüngliche
-> n8n-basierte Architektur aus der Seminararbeit. Parallel dazu existiert im
-> Repository eine zweite Implementation derselben Architektur als
-> Python/FastAPI-Backend mit Next.js-UI:
+> **Lese-Hinweis:** Dieses Dokument beschreibt die **konzeptionelle Architektur**
+> des Multi-Agenten-Systems — die Rollen jedes Agenten, die methodischen
+> Frameworks (Ansoff Weak-Signal-Skala, energiepolitisches Zieldreieck,
+> Szenario-Trichter nach Gausemeier) und die verbindlichen System Prompts.
 >
-> - `crewai/` — FastAPI-Backend. Implementiert die unten beschriebenen vier
->   Stages konkret als:
->   - **Scanning** über kuratierte RSS-Feeds **plus** DuckDuckGo Site-restricted
->     Suche für die in §5.3 / §11.4 / Anhang 1 genannten deutschen Quellen
->     (BMWK, BNetzA, Bundestag, Agora, Fraunhofer ISE, DENA, IEA, Tagesschau,
->     Handelsblatt, Heise, PV Magazine).
->   - **Assessment** als LLM-Klassifikation pro Case, liefert `is_signal`,
->     `confidence`, `ansoff_level (1-4)`, `pestel_category` und
->     `zieldreieck_dimensions` (siehe §6.3 Ansoff-Skala und §4 Zieldreieck).
->   - **Energy Expert** als zweiter LLM-Call mit dem in §7.3 spezifizierten
->     Wissensrahmen (Merit-Order, Missing-Money, Kannibalisierung, 3D-
->     Transformation, Zieldreieck §1 EnWG); liefert `is_valid`,
->     `systemic_impact (HOCH|MITTEL|GERING)`, `time_horizon` und einen Detail-
->     Text pro Zieldreieck-Dimension.
->   - **HITL-Gate** (§14): Workflow stoppt nach dem Expert-Step bei Cases mit
->     mittlerer Confidence, wartet auf den Human-Review und setzt per
->     Resume-Endpoint im Scenario-Step fort.
->   - **Scenario** mit Streaming-Strategic-Alert.
->   - Persistenz aktuell als flat JSON-Store (entspricht §10.3 n8n Static
->     Data Approach).
-> - `ui/workflow-console/` — Live-Timeline mit Progress-Bars und
->   Streaming-Cursor, Run-History, Case-Filter mit Awaiting-Highlight,
->   HITL-Banner mit Resume-Button, Human-Review mit PESTEL- und Zieldreieck-
->   Anzeige.
->
-> Beide Implementationen folgen dem hier beschriebenen Coordinator-Worker-
-> Delegator-Modell und denselben Stage-Definitionen. Die n8n-Workflow-Exporte
-> liegen in `n8n/`, die laufende Architektur und Datenflüsse des
-> CrewAI-Backends sind in `WORKFLOW_ARCHITECTURE.md` dokumentiert.
+> Die konkrete **Implementierung** als Python/FastAPI-Backend (`crewai/`) mit
+> LiteLLM-Streaming, JSON-Flat-File-Persistenz und Next.js-Frontend
+> (`ui/workflow-console/`) ist in [`WORKFLOW_ARCHITECTURE.md`](WORKFLOW_ARCHITECTURE.md)
+> dokumentiert (Endpoints, Datenfluss, Streaming, Polling).
 
 ---
 
@@ -48,30 +23,29 @@
 
 1. [Systemübersicht](#1-systemübersicht)
 2. [Architekturprinzipien](#2-architekturprinzipien)
-3. [Workflow-Struktur in n8n](#3-workflow-struktur-in-n8n)
-4. [Coordinator Agent](#4-coordinator-agent)
-5. [Scanning Agent](#5-scanning-agent)
-6. [Assessment Agent](#6-assessment-agent)
-7. [Energy Expert Agent](#7-energy-expert-agent)
-8. [Scenario Integration Agent](#8-scenario-integration-agent)
-9. [Datenfluss & Schnittstellendefinitionen](#9-datenfluss--schnittstellendefinitionen)
-10. [Shared Memory & Persistenz](#10-shared-memory--persistenz)
-11. [Guardrails & Fehlerbehandlung](#11-guardrails--fehlerbehandlung)
-12. [n8n Konfigurationsreferenz](#12-n8n-konfigurationsreferenz)
-13. [Deployment & Import/Export](#13-deployment--importexport)
-14. [Human-in-the-Loop & Audit Layer](#14-human-in-the-loop--audit-layer)
-15. [Dedizierte Review UI (Next.js)](#15-dedizierte-review-ui-nextjs)
+3. [Coordinator Agent](#3-coordinator-agent)
+4. [Scanning Agent](#4-scanning-agent)
+5. [Assessment Agent](#5-assessment-agent)
+6. [Energy Expert Agent](#6-energy-expert-agent)
+7. [Scenario Integration Agent](#7-scenario-integration-agent)
+8. [Datenfluss & Schnittstellendefinitionen](#8-datenfluss--schnittstellendefinitionen)
+9. [Guardrails & Fehlerbehandlung](#9-guardrails--fehlerbehandlung)
+10. [Human-in-the-Loop & Audit Layer](#10-human-in-the-loop--audit-layer)
+11. [Anhang: PESTEL-Suchbegriffe](#anhang-pestel-suchbegriffe)
 
 ---
 
 ## 1. Systemübersicht
 
-Das **Agent-Based Foresight System** automatisiert den Generic Foresight Process (GFP) nach Voros durch ein hierarchisches Multi-Agenten-System (MAS). Es detektiert Weak Signals im Energiesektor, bewertet diese nach Ansoff und integriert sie in das Szenariomanagement nach Gausemeier.
+Das **Agent-Based Foresight System** automatisiert den Generic Foresight Process
+(GFP) nach Voros durch ein hierarchisches Multi-Agenten-System (MAS). Es
+detektiert Weak Signals im Energiesektor, bewertet diese nach Ansoff und
+integriert sie in das Szenariomanagement nach Gausemeier.
 
 ### Systemziel
 
 ```
-Unstrukturierte Datenströme (Web, APIs, Fachjournale)
+Unstrukturierte Datenströme (RSS-Feeds, Web, energiewirtschaftliche Quellen)
         ↓
   Automatisierte Weak-Signal-Detektion
         ↓
@@ -80,16 +54,18 @@ Unstrukturierte Datenströme (Web, APIs, Fachjournale)
   Strategic Alert für Entscheidungsträger
 ```
 
-### Technologie-Stack
+### Technologie-Stack (Implementierung)
 
-| Komponente | Technologie | Zweck |
-|---|---|---|
-| Orchestrierung | n8n (self-hosted / cloud) | Workflow-Engine |
-| LLM | Google Gemini Pro / GPT-4o | Reasoning & Textverarbeitung |
-| Web Search | SerpAPI / Tavily | Environmental Scanning |
-| Persistenz | n8n Static Data / Airtable | Shared Memory / Szenario-Trichter |
-| Output | E-Mail / Slack | Strategic Alerts |
-| Versionierung | GitHub (.json Export) | Collaboration Gruppe 11 + 12 |
+| Komponente   | Technologie                                  | Zweck                         |
+|---           |---                                           |---                            |
+| Orchestrierung | Python 3.11 + FastAPI                      | Backend-Workflow              |
+| LLM          | LiteLLM (provider-agnostisch)                | Reasoning & Textverarbeitung  |
+| Quellen      | feedparser (RSS) + `ddgs` (DuckDuckGo)       | Environmental Scanning        |
+| Persistenz   | JSON-Flat-File (`crewai/data/state.json`)    | Shared Memory                 |
+| UI           | Next.js 15, TypeScript                       | Workflow Console + HITL       |
+| Output       | CSV / JSON / PDF Report                      | Strategic Alerts              |
+
+> Implementierungsspezifische Details siehe `WORKFLOW_ARCHITECTURE.md`.
 
 ---
 
@@ -107,8 +83,8 @@ Das System folgt dem in der Seminararbeit beschriebenen CWD-Modell:
                │ delegiert Tasks & Constraints
                ▼
 ┌─────────────────────────────────────────────┐
-│   (implizit im Tool-Aufruf-Mechanismus)     │  ← Middle Level
-│   Aufgabenverteilung via $fromAI()          │
+│   Sequentielle Stage-Orchestrierung         │  ← Middle Level
+│   (Scanning → Assessment → Expert → Scen.)  │
 └──┬──────────┬──────────┬────────────────────┘
    │          │          │ Tasks & Results
    ▼          ▼          ▼
@@ -120,12 +96,12 @@ Das System folgt dem in der Seminararbeit beschriebenen CWD-Modell:
 
 ### 2.2 Sense-Think-Act Mapping
 
-| Sense-Think-Act Phase | Zugeordneter Agent | GFP-Phase |
-|---|---|---|
-| **Sense** | Scanning Agent | Inputs |
-| **Think (Filter)** | Assessment Agent | Analysis |
-| **Think (Validate)** | Energy Expert Agent | Interpretation |
-| **Act** | Scenario Integration Agent | Prospection & Outputs |
+| Sense-Think-Act Phase | Zugeordneter Agent      | GFP-Phase                |
+|---                    |---                      |---                       |
+| **Sense**             | Scanning Agent          | Inputs                   |
+| **Think (Filter)**    | Assessment Agent        | Analysis                 |
+| **Think (Validate)**  | Energy Expert Agent     | Interpretation           |
+| **Act**               | Scenario Integration    | Prospection & Outputs    |
 
 ### 2.3 Designprinzipien für Prompts (Best Practices)
 
@@ -140,95 +116,28 @@ Alle System Prompts in diesem System folgen diesen Regeln:
 
 ---
 
-## 3. Workflow-Struktur in n8n
+## 3. Coordinator Agent
 
-### 3.1 Übersicht aller Workflows
+### 3.1 Rolle & Verantwortung
 
-```
-Foresight Management (Main)          ID: VdD7m3JdvZSp2W37
-├── Scanning Agent (Sub-Workflow)    ID: OPs2h4Bn71SsI990
-├── Assessment Agent (Sub-Workflow)  ID: 5ChTSJRdKDEsWKys
-├── Energy Expert Agent (Sub-W.)     ID: zzjbcS2fWJQ9fikp
-└── Scenario Agent (Sub-Workflow)    [noch anzulegen]
-```
+Der Coordinator ist der einzige Agent, der direkten Kontakt zum Trigger hat. Er
+kennt den Gesamtprozess, verwaltet den Szenario-Trichter-Status und entscheidet,
+welche Agenten wann aufgerufen werden. Er entspricht dem **Top Level** im
+CWD-Modell.
 
-### 3.2 Trigger-Logik
-
-```
-Schedule Trigger (täglich 06:00)
-        ↓
-Coordinator Agent
-  [entscheidet autonom welche Tools er aufruft]
-        ↓
-Tool: run_scanning_agent      → gibt raw_kandidaten zurück
-        ↓
-Tool: run_assessment_agent    → gibt weak_signals zurück
-        ↓
-Tool: run_energy_expert_agent → gibt validierte_signale zurück
-        ↓
-Tool: run_scenario_agent      → gibt strategic_alert zurück
-        ↓
-Output: E-Mail / Slack / Airtable
-```
-
-### 3.3 Node-Typen Übersicht
-
-| n8n Node | Funktion | Wo eingesetzt |
-|---|---|---|
-| `scheduleTrigger` | Täglicher Start | Main Workflow |
-| `agent` (LangChain) | LLM-Agent mit Tools | Alle Agenten |
-| `toolWorkflow` | Sub-Workflow als Tool | Main → Sub-Workflows |
-| `lmChatGoogleGemini` | LLM Provider | Alle Agenten |
-| `memoryBufferWindow` | Kurzzeitgedächtnis | Coordinator |
-| `executeWorkflowTrigger` | Eingang Sub-Workflow | Alle Sub-Workflows |
-| `set` | Daten strukturieren | Output-Formatierung |
-| `sendEmail` / Slack | Strategic Alert Output | Scenario Agent |
-
----
-
-## 4. Coordinator Agent
-
-### 4.1 Rolle & Verantwortung
-
-Der Coordinator ist der einzige Agent, der direkten Kontakt zum Trigger hat. Er kennt den Gesamtprozess, verwaltet den Szenario-Trichter-Status im Memory und entscheidet, welche Agenten wann aufgerufen werden. Er entspricht dem **Top Level** im CWD-Modell.
-
-### 4.2 n8n Konfiguration
-
-```json
-{
-  "type": "@n8n/n8n-nodes-langchain.agent",
-  "typeVersion": 3.1,
-  "parameters": {
-    "options": {
-      "systemMessage": "[siehe 4.3]",
-      "maxIterations": 10,
-      "returnIntermediateSteps": false
-    }
-  }
-}
-```
-
-**Verbundene Nodes:**
-- `lmChatGoogleGemini` → `ai_languageModel`
-- `memoryBufferWindow` → `ai_memory`
-- `toolWorkflow` (Scanning) → `ai_tool`
-- `toolWorkflow` (Assessment) → `ai_tool`
-- `toolWorkflow` (Energy Expert) → `ai_tool`
-- `toolWorkflow` (Scenario) → `ai_tool`
-
-### 4.3 System Prompt
+### 3.2 System Prompt
 
 ```
 # Rolle
-Du bist der Koordinations-Agent (Coordinator) eines automatisierten 
-Foresight-Systems für die Energieökonomik, entwickelt von der DHBW Stuttgart 
-Gruppe 11. Du stehst an der Spitze eines hierarchischen Multi-Agenten-Systems 
+Du bist der Koordinations-Agent (Coordinator) eines automatisierten
+Foresight-Systems für die Energieökonomik, entwickelt von der DHBW Stuttgart
+Gruppe 11. Du stehst an der Spitze eines hierarchischen Multi-Agenten-Systems
 nach dem CWD-Modell (Coordinator-Worker-Delegator).
 
 # Kontext
 Das System dient der automatisierten Detektion von Weak Signals im Energiesektor
-und deren Integration in das Szenariomanagement nach Gausemeier. Du operierst 
-täglich und hast Zugriff auf spezialisierte Worker-Agenten als Tools.
+und deren Integration in das Szenariomanagement nach Gausemeier. Du operierst
+periodisch und hast Zugriff auf spezialisierte Worker-Agenten als Tools.
 
 # Bewertungsrahmen
 Alle Aktivitäten orientieren sich am energiepolitischen Zieldreieck (§1 EnWG):
@@ -240,26 +149,26 @@ Alle Aktivitäten orientieren sich am energiepolitischen Zieldreieck (§1 EnWG):
 Führe IMMER die folgenden Schritte in dieser Reihenfolge aus:
 
 SCHRITT 1 – SCANNING:
-Rufe run_scanning_agent auf. Übergib:
-- suchbegriffe: Array mit 8-12 konkreten PESTEL-Suchbegriffen aus dem 
+Rufe den Scanning Agent auf. Übergib:
+- suchbegriffe: Array mit 8-12 konkreten PESTEL-Suchbegriffen aus dem
   aktuellen Energiekontext (siehe Fokusthemen unten)
-- fokus: Einen präzisen Satz zum strategischen Fokus des heutigen Scans
+- fokus: Einen präzisen Satz zum strategischen Fokus des Scans
 
 SCHRITT 2 – ASSESSMENT:
-Übergib ALLE Rohdaten aus Schritt 1 an run_assessment_agent.
+Übergib ALLE Rohdaten aus Schritt 1 an den Assessment Agent.
 Überspringe diesen Schritt NICHT, auch wenn die Rohdaten unvollständig wirken.
 
 SCHRITT 3 – VALIDIERUNG:
-Übergib NUR die bestätigten Weak Signals (signal: true) aus Schritt 2 
-an run_energy_expert_agent. 
-Wenn Schritt 2 keine Signale liefert: Stoppe hier und berichte "Keine 
+Übergib NUR die bestätigten Weak Signals (signal: true) aus Schritt 2
+an den Energy Expert Agent.
+Wenn Schritt 2 keine Signale liefert: Stoppe hier und berichte "Keine
 Weak Signals detektiert am [Datum]."
 
 SCHRITT 4 – SZENARIO-INTEGRATION:
-Rufe run_scenario_agent NUR auf, wenn Schritt 3 mindestens ein valides 
+Rufe den Scenario Agent NUR auf, wenn Schritt 3 mindestens ein valides
 Signal (valide: true) geliefert hat.
 
-# Fokusthemen (täglich zu scannen)
+# Fokusthemen (zu scannen)
 - Energiewende & EEG-Novellen
 - Wasserstoff (Produktion, Import, LOHC-Technologie)
 - Speichertechnologien (Solid State Battery, Redox-Flow)
@@ -269,7 +178,7 @@ Signal (valide: true) geliefert hat.
 - Geopolitik & Energieversorgungssicherheit
 
 # Constraints (Guardrails)
-- Rufe NIEMALS Assessment oder Expert Agent auf, ohne vorher den Scanning 
+- Rufe NIEMALS Assessment oder Expert Agent auf, ohne vorher den Scanning
   Agent ausgeführt zu haben
 - Erfinde KEINE Signale oder Quellen
 - Überspringe KEINEN Schritt im Prozess
@@ -285,72 +194,35 @@ Gib eine strukturierte Zusammenfassung aus:
 ### Zusammenfassung: [2-3 Sätze]
 ```
 
-### 4.4 Memory-Konfiguration
-
-```json
-{
-  "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
-  "parameters": {
-    "sessionKey": "foresight-coordinator-{{ $now.format('yyyy-MM-dd') }}",
-    "contextWindowLength": 10
-  }
-}
-```
-
-> **Hinweis:** Das Window Memory ist für den täglichen Scan ausreichend. Für persistente Szenario-Speicherung → Airtable verwenden (siehe Abschnitt 10).
-
 ---
 
-## 5. Scanning Agent
+## 4. Scanning Agent
 
-### 5.1 Rolle & Verantwortung
+### 4.1 Rolle & Verantwortung
 
-Der Scanning Agent ist der erste Worker. Er implementiert das **Environmental Scanning** aus dem GFP (Phase: Inputs). Seine Aufgabe ist maximale Scan-Breite ohne Bewertung – er sammelt Rohdaten entlang der PESTEL-Dimensionen und gibt sie unbewertet weiter.
+Der Scanning Agent ist der erste Worker. Er implementiert das **Environmental
+Scanning** aus dem GFP (Phase: Inputs). Seine Aufgabe ist maximale Scan-Breite
+ohne Bewertung – er sammelt Rohdaten entlang der PESTEL-Dimensionen und gibt sie
+unbewertet weiter.
 
-### 5.2 Tool-Definition im Coordinator
+### 4.2 Quellen
 
-```json
-{
-  "name": "run_scanning_agent",
-  "description": "Searches web and energy data sources for potential weak signals. 
-Use this tool FIRST. 
-Input: suchbegriffe (string, JSON array of search terms), fokus (string).
-Output: Raw signal candidates with source, summary, pestel_kategorie."
-}
-```
+Die Implementierung kombiniert zwei Datenwege:
 
-**Übergabedaten ($fromAI):**
+- **RSS-Feeds** kuratierter Energie-Publikationen (Clean Energy Wire,
+  Energy Monitor, Climate Change News, Renewable Energy World)
+- **DuckDuckGo Site-restricted Search** über deutsche Schlüsselquellen:
+  BMWK, BNetzA, Bundestag, EC Energy, Agora Energiewende, Fraunhofer ISE,
+  DENA, IEA, Tagesschau, Handelsblatt, Heise, PV Magazine DE,
+  Energie & Management
 
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `suchbegriffe` | string (JSON Array) | PESTEL-Suchbegriffe, z.B. `["EEG-Novelle", "Solid State Battery"]` |
-| `fokus` | string | Strategischer Fokus des Scans |
-
-### 5.3 Sub-Workflow Aufbau
-
-```
-Execute Workflow Trigger
-        ↓
-Set Node ("Input parsen")
-  → suchbegriffe = {{ JSON.parse($json.suchbegriffe) }}
-        ↓
-SerpAPI / Tavily Tool (Web Search)
-  [mehrfach aufgerufen für jeden Suchbegriff]
-        ↓
-AI Agent Node ("Scanning Agent LLM")
-  [strukturiert die Suchergebnisse]
-        ↓
-Set Node ("Output formatieren")
-  → kandidaten = [{ text, quelle, pestel_kategorie, datum }]
-```
-
-### 5.4 System Prompt
+### 4.3 System Prompt
 
 ```
 # Rolle
 Du bist der Scanning Agent eines Foresight-Systems für die Energieökonomik.
-Du implementierst das Environmental Scanning des Generic Foresight Process 
-nach Voros. Deine einzige Aufgabe ist das SAMMELN von Informationen – 
+Du implementierst das Environmental Scanning des Generic Foresight Process
+nach Voros. Deine einzige Aufgabe ist das SAMMELN von Informationen –
 du bewertest NICHT.
 
 # Kontext
@@ -361,12 +233,12 @@ Du hast Zugriff auf Web-Search-Tools und musst diese aktiv nutzen.
 1. Führe für JEDEN übergebenen Suchbegriff eine Web-Suche durch
 2. Extrahiere aus den Ergebnissen potenzielle Signale
 3. Kategorisiere jeden Fund einer PESTEL-Dimension zu:
-   - P = Political (Politik, Regulierung, Geopolitik)
-   - E = Economic (Märkte, Preise, Kapitalkosten)
-   - S = Social (Akzeptanz, Konsumverhalten, Gerechtigkeit)
-   - T = Technological (Innovationen, Effizienzsprünge, Patente)
+   - P  = Political (Politik, Regulierung, Geopolitik)
+   - E  = Economic (Märkte, Preise, Kapitalkosten)
+   - S  = Social (Akzeptanz, Konsumverhalten, Gerechtigkeit)
+   - T  = Technological (Innovationen, Effizienzsprünge, Patente)
    - En = Environmental (Klimawandel, Ressourcen, physische Risiken)
-   - L = Legal (Rechtsprechung, Normen, Genehmigungen)
+   - L  = Legal (Rechtsprechung, Normen, Genehmigungen)
 
 # Quellen (bevorzugt)
 - Nachrichten: Reuters Energy, Handelsblatt Energie, Tagesspiegel Background
@@ -401,73 +273,47 @@ Gib ausschließlich valides JSON zurück:
   "anzahl_kandidaten": 0,
   "fehler": []
 }
-
-# Beispiel-Output (ein Kandidat)
-{
-  "id": "c001",
-  "text": "Forscher der TU München berichten über einen Durchbruch bei 
-           Feststoffbatterien mit einer Energiedichte von 500 Wh/kg bei 
-           Produktionskosten unter 80 EUR/kWh – bisher galt 100 EUR/kWh 
-           als Schwelle für Netzparität.",
-  "quelle": "arXiv:2401.12345 / TU München Pressemitteilung",
-  "pestel_kategorie": "T",
-  "datum_fund": "2025-06-01",
-  "suchbegriff": "Solid State Battery Kosten Durchbruch"
-}
 ```
 
 ---
 
-## 6. Assessment Agent
+## 5. Assessment Agent
 
-### 6.1 Rolle & Verantwortung
+### 5.1 Rolle & Verantwortung
 
-Der Assessment Agent implementiert die **Analysis-Phase** des GFP. Er ist der kritische Filter zwischen Rohdaten und strategischer Relevanz. Er klassifiziert jeden Kandidaten auf der Ansoff Weak-Signal-Skala (Level 1–5) und trennt Weak Signals von Noise und bereits bekannten Trends.
+Der Assessment Agent implementiert die **Analysis-Phase** des GFP. Er ist der
+kritische Filter zwischen Rohdaten und strategischer Relevanz. Er klassifiziert
+jeden Kandidaten auf der Ansoff Weak-Signal-Skala und trennt Weak Signals von
+Noise und bereits bekannten Trends.
 
-### 6.2 Tool-Definition im Coordinator
+### 5.2 Ansoff Weak-Signal-Skala (Referenz)
 
-```json
-{
-  "name": "run_assessment_agent",
-  "description": "Filters raw candidates and classifies on Ansoff scale (1-5).
-Use AFTER run_scanning_agent.
-Input: kandidaten (string, JSON array with text, quelle, pestel_kategorie).
-Output: Filtered weak signals with ansoff_level, signal boolean, begruendung."
-}
-```
+| Level | Bezeichnung           | Beschreibung                                          | Handlung    |
+|---    |---                    |---                                                    |---          |
+| 1     | Sense of Threat       | Nur vages Gefühl, dass sich etwas verändert           | Beobachten  |
+| 2     | Source Known          | Quelle bekannt, Natur der Bedrohung unklar            | Scannen     |
+| 3     | Threat Characterized  | Bedrohung konkret, Reaktionsmöglichkeiten unklar      | Analysieren |
+| 4     | Response Known        | Reaktionsmöglichkeiten bekannt, Zeitpunkt unklar      | Planen      |
+| 5     | Full Information      | Vollständiges Bild, hohe Informationsdichte           | = Trend     |
 
-**Übergabedaten ($fromAI):**
+> **Weak Signals = Level 1–3.** Level 4–5 sind bereits Trends oder bekannte
+> Entwicklungen. Die Implementierung beschränkt das Ausgabefeld auf 1–4, weil
+> Level 5 per Definition kein Weak Signal mehr ist.
 
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `kandidaten` | string (JSON Array) | Rohdaten vom Scanning Agent |
-
-### 6.3 Ansoff Weak-Signal-Skala (Referenz)
-
-| Level | Bezeichnung | Beschreibung | Handlung |
-|---|---|---|---|
-| 1 | Sense of Threat | Nur vages Gefühl, dass sich etwas verändert | Beobachten |
-| 2 | Source Known | Quelle bekannt, Natur der Bedrohung unklar | Scannen |
-| 3 | Threat Characterized | Bedrohung konkret, Reaktionsmöglichkeiten unklar | Analysieren |
-| 4 | Response Known | Reaktionsmöglichkeiten bekannt, Zeitpunkt unklar | Planen |
-| 5 | Full Information | Vollständiges Bild, hohe Informationsdichte | = Trend, kein Weak Signal mehr |
-
-> **Weak Signals = Level 1–3.** Level 4–5 sind bereits Trends oder bekannte Entwicklungen.
-
-### 6.4 System Prompt
+### 5.3 System Prompt
 
 ```
 # Rolle
 Du bist der Assessment Agent eines Foresight-Systems für die Energieökonomik.
 Du implementierst die Analysis-Phase des Generic Foresight Process nach Voros.
-Deine Aufgabe ist die präzise Klassifikation von Rohdaten nach der 
+Deine Aufgabe ist die präzise Klassifikation von Rohdaten nach der
 Weak-Signal-Theorie von Igor Ansoff (1975).
 
 # Kontext
 Du erhältst eine Liste von Rohdaten-Kandidaten vom Scanning Agent.
-Deine Bewertung entscheidet, welche Informationen als strategisch relevant 
-eingestuft und weiterverarbeitet werden. Fehler hier (False Positives = Noise 
-als Signal, False Negatives = Signal übersehen) beeinflussen die gesamte 
+Deine Bewertung entscheidet, welche Informationen als strategisch relevant
+eingestuft und weiterverarbeitet werden. Fehler hier (False Positives = Noise
+als Signal, False Negatives = Signal übersehen) beeinflussen die gesamte
 Szenarioqualität.
 
 # Klassifikations-Framework: Ansoff Weak-Signal-Skala
@@ -504,7 +350,7 @@ Für JEDEN Kandidaten in der Eingabeliste:
 - Bewerte JEDEN Kandidaten – überspringe keinen
 - Sei STRENG bei der Signal/Noise-Trennung: Im Zweifel = Noise
 - Erfinde KEINE zusätzlichen Informationen zur Begründung
-- Vergib Level 5 NUR wenn die Entwicklung bereits in Mainstream-Medien 
+- Vergib Level 5 NUR wenn die Entwicklung bereits in Mainstream-Medien
   und Fachpublikationen breit diskutiert wird
 
 # Output-Format (strikt einzuhalten)
@@ -523,7 +369,7 @@ Gib ausschließlich valides JSON zurück:
       "signal": true,
       "ansoff_level": 2,
       "zieldreieck_dimension": ["Wirtschaftlichkeit", "Versorgungssicherheit"],
-      "begruendung": "Noch nicht im Mainstream, deutet auf potenzielle 
+      "begruendung": "Noch nicht im Mainstream, deutet auf potenzielle
                       Kostenstrukturverschiebung im Speichermarkt hin."
     }
   ],
@@ -538,53 +384,44 @@ Gib ausschließlich valides JSON zurück:
 
 ---
 
-## 7. Energy Expert Agent
+## 6. Energy Expert Agent
 
-### 7.1 Rolle & Verantwortung
+### 6.1 Rolle & Verantwortung
 
-Der Energy Expert Agent ist der **Halluzinations-Guard** des Systems. Er implementiert die Interpretation-Phase des GFP und prüft jedes bestätigte Weak Signal gegen physikalische und ökonomische Realität der Energiewirtschaft. Er ist die domänenspezifische Validierungsinstanz.
+Der Energy Expert Agent ist der **Halluzinations-Guard** des Systems. Er
+implementiert die Interpretation-Phase des GFP und prüft jedes bestätigte Weak
+Signal gegen physikalische und ökonomische Realität der Energiewirtschaft. Er
+ist die domänenspezifische Validierungsinstanz.
 
-### 7.2 Tool-Definition im Coordinator
+### 6.2 Energieökonomisches Wissens-Framework (Referenz für den Agenten)
 
-```json
-{
-  "name": "run_energy_expert_agent",
-  "description": "Validates weak signals against energy economics domain knowledge.
-Prevents hallucinations via Merit-Order logic and energy policy triangle.
-Use AFTER run_assessment_agent, only with confirmed signals.
-Input: signale (string, JSON array with text, ansoff_level, pestel_kategorie).
-Output: Validated signals with zieldreieck_impact and valide boolean."
-}
-```
+**Merit-Order-Prinzip:** Kraftwerke werden nach aufsteigenden Grenzkosten
+eingesetzt. Der Grenzkraftwerkspreis gilt für alle Anbieter. Erneuerbare mit
+Grenzkosten ≈ 0 verdrängen fossile Anlagen → sinkende Spotpreise.
 
-**Übergabedaten ($fromAI):**
+**Kannibalisierungseffekt:** Mit zunehmendem EE-Anteil sinkt der
+technologiespezifische Marktwert von Wind/Solar, weil hohe Einspeisung mit
+niedrigen Preisen korreliert.
 
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `signale` | string (JSON Array) | Bestätigte Weak Signals vom Assessment Agent |
+**Missing Money Problem:** Konventionelle Backup-Kraftwerke können in
+Energy-Only-Märkten ihre Fixkosten nicht mehr decken, da Knappheitspreise durch
+EE-Ausbau seltener werden → Investitionsdefizit bei gesicherter Leistung.
 
-### 7.3 Energieökonomisches Wissens-Framework (Referenz für den Agenten)
+**3D-Transformation:** Dekarbonisierung + Dezentralisierung + Digitalisierung
+als gleichzeitig wirkende Megatrends mit gegenseitigen Wechselwirkungen.
 
-**Merit-Order-Prinzip:** Kraftwerke werden nach aufsteigenden Grenzkosten eingesetzt. Der Grenzkraftwerkspreis gilt für alle Anbieter. Erneuerbare mit Grenzkosten ≈ 0 verdrängen fossile Anlagen → sinkende Spotpreise.
-
-**Kannibalisierungseffekt:** Mit zunehmendem EE-Anteil sinkt der technologiespezifische Marktwert von Wind/Solar, weil hohe Einspeisung mit niedrigen Preisen korreliert.
-
-**Missing Money Problem:** Konventionelle Backup-Kraftwerke können in Energy-Only-Märkten ihre Fixkosten nicht mehr decken, da Knappheitspreise durch EE-Ausbau seltener werden → Investitionsdefizit bei gesicherter Leistung.
-
-**3D-Transformation:** Dekarbonisierung + Dezentralisierung + Digitalisierung als gleichzeitig wirkende Megatrends mit gegenseitigen Wechselwirkungen.
-
-### 7.4 System Prompt
+### 6.3 System Prompt
 
 ```
 # Rolle
-Du bist der Energy Expert Agent – die domänenspezifische Validierungsinstanz 
-eines Foresight-Systems. Du besitzt tiefes Fachwissen in Energieökonomik und 
-deine Aufgabe ist die Plausibilitätsprüfung von Weak Signals gegen bekannte 
+Du bist der Energy Expert Agent – die domänenspezifische Validierungsinstanz
+eines Foresight-Systems. Du besitzt tiefes Fachwissen in Energieökonomik und
+deine Aufgabe ist die Plausibilitätsprüfung von Weak Signals gegen bekannte
 physikalische und ökonomische Gesetzmäßigkeiten der Energiewirtschaft.
 
 # Kontext
 Du bist die letzte Qualitätssicherungsstufe vor der Szenario-Integration.
-Du verhindert, dass KI-Halluzinationen oder fachlich inkorrekte Bewertungen 
+Du verhinderst, dass KI-Halluzinationen oder fachlich inkorrekte Bewertungen
 des Assessment Agents in das Szenariomanagement einfließen.
 
 # Dein Wissens-Framework (verpflichtend anzuwenden)
@@ -612,13 +449,13 @@ des Assessment Agents in das Szenariomanagement einfließen.
 
 # Aufgabe
 Für JEDES übergebene Weak Signal:
-1. Prüfe physikalische Plausibilität: Widerspricht das Signal bekannten 
+1. Prüfe physikalische Plausibilität: Widerspricht das Signal bekannten
    Naturgesetzen oder technischen Realitäten? → valide: false wenn ja
-2. Prüfe ökonomische Plausibilität: Ist die beschriebene Entwicklung 
+2. Prüfe ökonomische Plausibilität: Ist die beschriebene Entwicklung
    mit bekannten Marktmechanismen vereinbar?
 3. Analysiere Zieldreieck-Impact: Welche Dimension(en) werden wie beeinflusst?
-4. Schätze den Systemischen Impakt: Kann dieses Signal die Merit-Order 
-   verschieben, das Missing Money Problem verschärfen oder Kapazitätsmärkte 
+4. Schätze den Systemischen Impakt: Kann dieses Signal die Merit-Order
+   verschieben, das Missing Money Problem verschärfen oder Kapazitätsmärkte
    beeinflussen?
 5. Bewerte den Zeithorizont: Wann könnte das Signal zum Trend werden?
 
@@ -645,17 +482,17 @@ Gib ausschließlich valides JSON zurück:
       "pestel_kategorie": "T",
       "valide": true,
       "zieldreieck_impact": {
-        "wirtschaftlichkeit": "Potenzielle Verschiebung der Merit-Order-Kurve 
+        "wirtschaftlichkeit": "Potenzielle Verschiebung der Merit-Order-Kurve
                                durch sinkende Speichergrenzkosten",
-        "versorgungssicherheit": "Erhöhung der gesicherten Leistung durch 
+        "versorgungssicherheit": "Erhöhung der gesicherten Leistung durch
                                   dezentrale Speicher",
-        "umweltvertraeglichkeit": "Positiv: ermöglicht höheren EE-Anteil 
+        "umweltvertraeglichkeit": "Positiv: ermöglicht höheren EE-Anteil
                                    ohne Netzausbau"
       },
       "systemischer_impakt": "HOCH – könnte Kapazitätsmarkdebatte neu entfachen",
       "zeithorizont": "3-7 Jahre bis zur Marktreife",
-      "begruendung_validierung": "Physikalisch plausibel. Kostenentwicklung 
-                                  konsistent mit Lernkurven-Theorie. 
+      "begruendung_validierung": "Physikalisch plausibel. Kostenentwicklung
+                                  konsistent mit Lernkurven-Theorie.
                                   Ansoff Level 2 bestätigt."
     }
   ],
@@ -663,7 +500,7 @@ Gib ausschließlich valides JSON zurück:
     {
       "id": "c003",
       "valide": false,
-      "ablehnungsgrund": "Widerspricht Netzphysik: beschriebene Lastflüsse 
+      "ablehnungsgrund": "Widerspricht Netzphysik: beschriebene Lastflüsse
                           ohne Netzausbau physikalisch nicht realisierbar."
     }
   ]
@@ -672,53 +509,41 @@ Gib ausschließlich valides JSON zurück:
 
 ---
 
-## 8. Scenario Integration Agent
+## 7. Scenario Integration Agent
 
-### 8.1 Rolle & Verantwortung
+### 7.1 Rolle & Verantwortung
 
-Der Scenario Integration Agent implementiert die **Prospection & Outputs-Phase** des GFP. Er verarbeitet validierte Weak Signals, aktualisiert den Szenario-Trichter nach Gausemeier und generiert den Strategic Alert für Entscheidungsträger.
+Der Scenario Integration Agent implementiert die **Prospection &
+Outputs-Phase** des GFP. Er verarbeitet validierte Weak Signals, aktualisiert
+den Szenario-Trichter nach Gausemeier und generiert den Strategic Alert für
+Entscheidungsträger.
 
-### 8.2 Tool-Definition im Coordinator
-
-```json
-{
-  "name": "run_scenario_agent",
-  "description": "Integrates validated signals into scenario funnel and generates 
-Strategic Alert for decision makers.
-Use ONLY when run_energy_expert_agent returned at least one valide: true signal.
-Input: validierte_signale (string, JSON array), aktueller_trichter (string).
-Output: Updated scenario assessment and Strategic Alert text."
-}
-```
-
-**Übergabedaten ($fromAI):**
-
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `validierte_signale` | string (JSON Array) | Validierte Signale vom Energy Expert |
-| `aktueller_trichter` | string | Aktueller Szenario-Trichter-Status |
-
-### 8.3 Szenario-Framework (Referenz)
+### 7.2 Szenario-Framework (Referenz)
 
 **Szenario-Trichter nach Gausemeier:**
-- Jedes Weak Signal kann den Trichter **weiten** (mehr Unsicherheit) oder **verengen** (ein Szenario wird wahrscheinlicher)
-- Extremszenario A: **"Autarke Dezentralität"** – Prosumer, Mikronetze, dezentrale Speicher dominieren
-- Extremszenario B: **"Zentraler Netzausbau"** – Großkraftwerke, europäisches Supergrid, Wasserstoff-Import
-- Trendszenario: **"Hybride Transformation"** – gradueller Umbau, Mix beider Extreme
 
-### 8.4 System Prompt
+- Jedes Weak Signal kann den Trichter **weiten** (mehr Unsicherheit) oder
+  **verengen** (ein Szenario wird wahrscheinlicher)
+- Extremszenario A: **"Autarke Dezentralität"** – Prosumer, Mikronetze,
+  dezentrale Speicher dominieren
+- Extremszenario B: **"Zentraler Netzausbau"** – Großkraftwerke, europäisches
+  Supergrid, Wasserstoff-Import
+- Trendszenario: **"Hybride Transformation"** – gradueller Umbau, Mix beider
+  Extreme
+
+### 7.3 System Prompt
 
 ```
 # Rolle
-Du bist der Scenario Integration Agent – die finale Stufe des automatisierten 
-Foresight-Prozesses. Du übersetzt validierte Weak Signals in strategische 
-Entscheidungsunterstützung und aktualisierst den Szenario-Trichter nach 
+Du bist der Scenario Integration Agent – die finale Stufe des automatisierten
+Foresight-Prozesses. Du übersetzt validierte Weak Signals in strategische
+Entscheidungsunterstützung und aktualisierst den Szenario-Trichter nach
 Gausemeier & Plass (2014).
 
 # Kontext
 Du erhältst fachlich validierte Weak Signals vom Energy Expert Agent.
-Deine Outputs gehen direkt an strategische Entscheidungsträger in der 
-Energiewirtschaft. Klarheit und Handlungsorientierung haben Vorrang vor 
+Deine Outputs gehen direkt an strategische Entscheidungsträger in der
+Energiewirtschaft. Klarheit und Handlungsorientierung haben Vorrang vor
 wissenschaftlicher Vollständigkeit.
 
 # Szenario-Framework
@@ -729,7 +554,7 @@ Treiber: Günstiger Dezentralspeicher, V2G-Massenadoption, Prosuming
 Indikatoren: Fallende Batteriekosten < 80 EUR/kWh, Netzparität Eigenverbrauch
 Systemzustand: Netzbetreiber unter Druck, Kapazitätsmärkte nicht nötig
 
-SZENARIO B – "Zentraler Netzausbau"  
+SZENARIO B – "Zentraler Netzausbau"
 Treiber: Wasserstoff-Import, Offshore-Wind, europäisches Supergrid
 Indikatoren: H2-Importpreisparität, HVDC-Ausbauprogramme, Carbon-Contracts
 Systemzustand: Große Energiekonzerne dominieren, Merit-Order bleibt stabil
@@ -739,7 +564,7 @@ Treiber: Mix aus A und B, gradueller Wandel
 Systemzustand: Koexistenz zentraler und dezentraler Strukturen
 
 # Aufgabe
-1. Analysiere: Welches der drei Szenarien wird durch die validierten Signale 
+1. Analysiere: Welches der drei Szenarien wird durch die validierten Signale
    wahrscheinlicher? Welches unwahrscheinlicher?
 2. Trichter-Update: Weitet oder verengt sich der Möglichkeitsraum?
 3. Signal-Mapping: Weise jedes Signal einem Szenario als "Indikator" zu
@@ -789,12 +614,12 @@ Gib ausschließlich valides JSON zurück:
 
 ---
 
-## 9. Datenfluss & Schnittstellendefinitionen
+## 8. Datenfluss & Schnittstellendefinitionen
 
-### 9.1 Vollständiger Datenfluss
+### 8.1 Vollständiger Datenfluss
 
 ```
-TRIGGER
+TRIGGER (manuell oder geplant)
   └─► Coordinator erhält: { datum, fokus_override? }
 
 SCHRITT 1: Scanning
@@ -804,13 +629,18 @@ SCHRITT 1: Scanning
 
 SCHRITT 2: Assessment
   Coordinator → Assessment Agent
-  Input:  { kandidaten: Kandidat[] }  ← aus Schritt 1
-  Output: { assessment_datum, weak_signals: Signal[], noise: [], anzahl_weak_signals }
+  Input:  { kandidaten: Kandidat[] }                       ← aus Schritt 1
+  Output: { assessment_datum, weak_signals: Signal[], noise: [],
+            anzahl_weak_signals }
 
 SCHRITT 3: Energy Expert
   Coordinator → Energy Expert Agent
-  Input:  { signale: Signal[] }  ← nur signal:true aus Schritt 2
-  Output: { validierung_datum, validierte_signale: ValidSignal[], abgelehnte_signale: [] }
+  Input:  { signale: Signal[] }                            ← nur signal:true
+  Output: { validierung_datum, validierte_signale: ValidSignal[],
+            abgelehnte_signale: [] }
+
+  → HITL-Gate: Cases mit mittlerer Confidence werden hier zur
+                 menschlichen Validierung ausgesondert (siehe §10).
 
 SCHRITT 4: Scenario Agent
   Coordinator → Scenario Agent
@@ -818,7 +648,7 @@ SCHRITT 4: Scenario Agent
   Output: { scan_datum, szenario_update, signal_mapping, strategic_alert }
 ```
 
-### 9.2 Datentypen
+### 8.2 Datentypen
 
 ```typescript
 // Kandidat (Scanning Output)
@@ -853,323 +683,103 @@ interface ValidSignal extends Signal {
 }
 ```
 
----
+### 8.3 Persistenz
 
-## 10. Shared Memory & Persistenz
+Konzeptionell unterscheidet das System drei Memory-Ebenen:
 
-### 10.1 Memory-Strategie
+| Zweck                       | Lebensdauer            |
+|---                          |---                     |
+| Coordinator-Konversation    | Pro Run                |
+| Historische Weak Signals    | Dauerhaft              |
+| Szenario-Trichter-Status    | Dauerhaft, pflegbar    |
 
-| Zweck | Lösung | Lebensdauer |
-|---|---|---|
-| Coordinator-Konversation | n8n Window Buffer Memory | 1 Tag (täglicher Scan) |
-| Historische Weak Signals | Airtable / Google Sheets | Dauerhaft |
-| Szenario-Trichter-Status | Airtable | Dauerhaft, manuell pflegbar |
-| Fehler-Log | n8n Execution History | 30 Tage |
-
-### 10.2 Airtable Schema (Empfehlung)
-
-**Tabelle: `weak_signals`**
-
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `signal_id` | Text | Eindeutige ID (c001, ...) |
-| `scan_datum` | Date | Datum der Entdeckung |
-| `text` | Long Text | Signal-Beschreibung |
-| `quelle` | URL | Quellenlink |
-| `pestel_kategorie` | Single Select | P/E/S/T/En/L |
-| `ansoff_level` | Number | 1-3 |
-| `zieldreieck` | Multi Select | Wirtschaftlichkeit/Versorgungssicherheit/Umwelt |
-| `systemischer_impakt` | Single Select | HOCH/MITTEL/GERING |
-| `szenario_indikator` | Single Select | A/B/C |
-| `status` | Single Select | Neu/Bestätigt/Abgeklungen/Mainstream |
-
-**Tabelle: `szenario_trichter`**
-
-| Feld | Typ | Beschreibung |
-|---|---|---|
-| `datum` | Date | Update-Datum |
-| `szenario_a_prob` | Number | Wahrscheinlichkeit % |
-| `szenario_b_prob` | Number | Wahrscheinlichkeit % |
-| `szenario_c_prob` | Number | Wahrscheinlichkeit % |
-| `kommentar` | Long Text | Begründung der Verschiebung |
-
-### 10.3 n8n Static Data (Alternative für schnelle Prototypen)
-
-Im Coordinator Agent kann Static Data per Code Node gespeichert werden:
-
-```javascript
-// Lesen
-const trichter = $getWorkflowStaticData('global').szenario_trichter 
-  || { a: 33, b: 33, c: 34 };
-
-// Schreiben (nach Scenario Agent Output)
-$getWorkflowStaticData('global').szenario_trichter = {
-  a: trichter.a + 5,
-  b: trichter.b - 3,
-  c: trichter.c - 2,
-  letzte_aktualisierung: new Date().toISOString()
-};
-```
+Die Implementierung verwendet eine **JSON-Flat-File-Persistenz** in
+`crewai/data/state.json` mit Runs, Cases und Konfiguration in einer einzigen
+Datei. Details und URL-Cross-Run-Deduplikation siehe
+`WORKFLOW_ARCHITECTURE.md`.
 
 ---
 
-## 11. Guardrails & Fehlerbehandlung
+## 9. Guardrails & Fehlerbehandlung
 
-### 11.1 Systemweite Guardrails
+### 9.1 Systemweite Guardrails
 
-| Guardrail | Implementierung | Zweck |
-|---|---|---|
-| Halluzinations-Schutz | Energy Expert Agent als Pflicht-Validierung | Fachliche Korrektheit |
-| Sequenz-Erzwingung | System Prompt Coordinator ("IMMER zuerst...") | Prozesstreue |
-| Output-Validation | JSON-Schema in jedem Agent | Strukturkonsistenz |
-| Noise-Filter | Assessment Agent (streng: im Zweifel = Noise) | Signal-Qualität |
-| Keine Eskalation ohne Signal | Coordinator-Logik ("NUR WENN valide Signal") | Ressourceneffizienz |
+| Guardrail                   | Implementierung                                          | Zweck                |
+|---                          |---                                                       |---                   |
+| Halluzinations-Schutz       | Energy Expert Agent als Pflicht-Validierung              | Fachliche Korrektheit |
+| Sequenz-Erzwingung          | System Prompt Coordinator ("IMMER zuerst...")            | Prozesstreue         |
+| Output-Validation           | Pydantic-Schema in jedem Agent                           | Strukturkonsistenz   |
+| Noise-Filter                | Assessment Agent (streng: im Zweifel = Noise)            | Signal-Qualität      |
+| Keine Eskalation ohne Signal| Coordinator-Logik ("NUR WENN valide Signal")             | Ressourceneffizienz  |
+| LLM-Ausfall-Fallback        | Heuristik-basierte Klassifikation als zweite Schicht     | Robustheit           |
 
-### 11.2 Fehlerbehandlung in n8n
+### 9.2 Bekannte Limitierungen
 
-In jedem Sub-Workflow sollte ein **Error Trigger** konfiguriert sein:
-
-```
-Settings → Error Workflow → [Fehler-Logging-Workflow]
-```
-
-Empfohlene Fehler-Behandlung im Coordinator System Prompt:
-```
-Wenn ein Tool einen Fehler zurückgibt:
-1. Dokumentiere den Fehler mit Zeitstempel
-2. Versuche das Tool EINMAL erneut
-3. Wenn erneut Fehler: Stoppe den Prozess
-4. Sende Fehler-Report: { fehler: true, tool: "...", nachricht: "..." }
-```
-
-### 11.3 Bekannte Limitierungen
-
-- **LLM-Kontextfenster:** Bei sehr vielen Kandidaten (>15) kann der Kontext überschritten werden → Kandidaten-Limit im Scanning Agent-Prompt gesetzt
-- **$fromAI() mit Arrays:** n8n übergibt Arrays als JSON-String → alle Agents müssen `JSON.parse()` auf eingehende Arrays anwenden
-- **Gemini JSON-Output:** Gemini gibt manchmal Markdown-Code-Blöcke zurück → Im Set Node: `{{ $json.output.replace(/```json|```/g, '').trim() }}`
+- **LLM-Kontextfenster:** Bei sehr vielen Kandidaten (>15) kann der Kontext
+  überschritten werden → Kandidaten-Limit im Scanning Agent-Prompt gesetzt
+- **JSON-Robustheit:** LLMs geben gelegentlich Markdown-Code-Blöcke statt
+  reines JSON zurück → Parser extrahiert JSON regex-basiert und fällt im
+  Fehlerfall auf Heuristik zurück
+- **Quellen-Verfügbarkeit:** RSS-Feeds können temporär ausfallen → DuckDuckGo
+  als zweite Suchschiene; bei vollständigem Ausfall greift ein Static-
+  Fallback-Quellenset
 
 ---
 
-## 12. n8n Konfigurationsreferenz
+## 10. Human-in-the-Loop & Audit Layer
 
-### 12.1 Session ID (Memory)
+Die modulare Agenten-Architektur wird durch eine **Review- und Audit-Schicht**
+zwischen Validierung und Szenario-Integration ergänzt.
 
-```
-// Im memoryBufferWindow Node → Session ID:
-{{ $workflow.id }}-{{ $now.format('yyyy-MM-dd') }}
-```
-
-### 12.2 $fromAI() Syntax
-
-```javascript
-// Grundform
-"={{ $fromAI('feldname', 'Beschreibung für das LLM', 'string') }}"
-
-// Mit Default
-"={{ $fromAI('ansoff_level', 'Signal maturity level 1-5', 'number') }}"
-```
-
-### 12.3 JSON-Parsing im Sub-Workflow (Set Node)
-
-```javascript
-// Wenn kandidaten als String ankommt:
-{{ JSON.parse($json.kandidaten) }}
-
-// Mit Fehlerbehandlung:
-{{ 
-  (() => {
-    try { return JSON.parse($json.kandidaten) }
-    catch(e) { return [] }
-  })()
-}}
-```
-
-### 12.4 Gemini Markdown-Stripping
-
-```javascript
-// Im Set Node nach dem Agent:
-{{ $json.output.replace(/```json\n?|\n?```/g, '').trim() }}
-```
-
----
-
-## 13. Deployment & Import/Export
-
-### 13.1 Workflow Export
+### 10.1 Position im Prozess
 
 ```
-Workflow öffnen → ⋮ (Menü oben rechts) → "Download" → .json
-```
-
-Alle 5 Workflows separat exportieren und in Git versionieren:
-
-```
-/foresight-mas/
-├── workflows/
-│   ├── 01_foresight_management_main.json
-│   ├── 02_scanning_agent.json
-│   ├── 03_assessment_agent.json
-│   ├── 04_energy_expert_agent.json
-│   └── 05_scenario_agent.json
-└── docs/
-    └── MAS_Foresight_Architektur.md   ← diese Datei
-```
-
-### 13.2 Import auf neuer Instanz
-
-```
-n8n öffnen → "+ New Workflow" → ⋮ → "Import from file"
-```
-
-> **Wichtig:** Nach dem Import müssen Workflow-IDs in den `toolWorkflow`-Nodes 
-> aktualisiert werden, da n8n auf der neuen Instanz neue IDs vergibt.
-
-### 13.3 Collaboration mit Gruppe 12
-
-Gruppe 12 (Szenariomanagement & Dashboarding) kann den Output des Scenario Agent direkt übernehmen. Empfohlene Schnittstelle:
-
-```json
-// Gruppe 11 → Gruppe 12 (via Airtable oder Webhook)
-{
-  "scan_datum": "2025-06-04",
-  "validierte_signale": [...],
-  "szenario_update": {...},
-  "strategic_alert": {...}
-}
-```
-
-Webhook-Trigger in Gruppe 12s Dashboard-Workflow:
-```
-POST /webhook/[gruppe12-webhook-id]
-Content-Type: application/json
-Body: [strategic_alert JSON]
-```
-
----
-
-## 14. Human-in-the-Loop & Audit Layer
-
-Die bestehende modulare Agenten-Architektur bleibt unverändert. Ergänzt wird eine
-zusätzliche **Review- und Audit-Schicht** zwischen Validierung und Szenario-Integration.
-
-### 14.1 Position im bestehenden Prozess
-
-```
-Schedule Trigger
-    ↓
+Trigger
+  ↓
 Coordinator
-    ↓
-run_scanning_agent
-    ↓
-run_assessment_agent
-    ↓
-run_energy_expert_agent
-    ↓
+  ↓
+Scanning Agent
+  ↓
+Assessment Agent
+  ↓
+Energy Expert Agent
+  ↓
 HITL Gate (Regelprüfung)
-    ├─ false: direkt weiter zu run_scenario_agent
-    └─ true: Übergabe an Review UI (Intake)
-              ↓
-            Human Entscheidung (approve/correct/reject)
-              ↓
-            Callback an n8n
-              ├─ approve/correct: run_scenario_agent
-              └─ reject: Prozess stoppen + Report
+  ├─ keine awaiting_review-Cases: direkt weiter zu Scenario Agent
+  └─ awaiting_review-Cases vorhanden: Workflow pausiert
+                ↓
+              Human Review (approve / correct / reject pro Case)
+                ↓
+              Resume-Trigger
+                ↓
+              Scenario Agent läuft mit validierten + human-bestätigten Signalen
 ```
 
-### 14.2 HITL-Eskalationsregeln (empfohlen)
+### 10.2 HITL-Eskalationsregeln
 
-Ein Fall geht verpflichtend in den Human-Review, wenn mindestens eine Regel erfüllt ist:
+Ein Case landet im `awaiting_review`-Status wenn:
 
-- `confidence < 0.70`
-- `uncertainty = high`
-- Quellenkonflikt erkannt (`source_conflict = true`)
-- `systemischer_impakt = HOCH`
+- `is_signal == true` und `confidence < 0.72` und Domain-Check (Energy Expert)
+  bestanden — also: relevant aber unsicher
 
-### 14.3 Standardisiertes Evidence-Objekt
+Fälle mit hoher Confidence (≥ 0.72) gehen automatisch nach `validated`.
+Domain-rejected Cases gehen direkt nach `rejected`, ohne Human Review.
 
-Jeder entscheidungsrelevante Schritt erzeugt ein prüfbares Objekt:
+### 10.3 Standardisiertes Evidence-Objekt
 
-```json
-{
-  "caseId": "case_2026_06_10_001",
-  "runId": "run_2026_06_10",
-  "stepId": "energy_validation",
-  "agentName": "Energy Expert Agent",
-  "callbackUrl": "http://localhost:5678/webhook/review-decision-callback",
-  "payload": {
-    "input_hash": "...",
-    "output_hash": "..."
-  },
-  "decision": {
-    "signal": true,
-    "ansoff_level": 2,
-    "valide": true
-  },
-  "reasoningFields": {
-    "claim": "Signal deutet auf strukturellen Kostenshift hin",
-    "evidence": ["https://..."],
-    "counterpoints": ["Pilotdaten evtl. nicht uebertragbar"],
-    "uncertainty": "medium",
-    "confidence": 0.74,
-    "policy_checks": {
-      "source_quality_passed": true,
-      "mainstream_check_passed": true
-    }
-  },
-  "sources": [
-    {
-      "title": "Quelle 1",
-      "url": "https://...",
-      "trustScore": 0.82
-    }
-  ]
-}
-```
+Jeder entscheidungsrelevante Schritt erzeugt ein prüfbares Objekt mit allen
+Feldern, die für Audit und Reproduzierbarkeit nötig sind: case_id, run_id,
+step_id, agent_name, input/output, reasoning fields (claim, evidence,
+counterpoints, uncertainty, confidence, policy_checks) und Quellen.
 
-### 14.4 Audit Logging
+### 10.4 Audit Logging
 
-Folgende Felder werden je Schritt persistiert:
+Je Schritt persistiert: `run_id`, `case_id`, `step_id`, `agent_name`,
+`timestamp`, `review_status`, `reviewer`, `review_comment`, `decision_diff`.
+Damit sind Entscheidungen reproduzierbar, diffbar und für Nachweise
+auswertbar.
 
-- `run_id`, `case_id`, `step_id`, `agent_name`, `timestamp`
-- `input_hash`, `output_hash`, `review_status`, `reviewer`
-- `review_comment`, `decision_diff`
-
-Damit sind Entscheidungen reproduzierbar, diffbar und für Nachweise auswertbar.
-
----
-
-## 15. Dedizierte Review UI (Next.js)
-
-Für die Human-in-the-Loop-Freigabe wird eine dedizierte Oberfläche bereitgestellt:
-
-- Pfad im Repository: `ui/review-console`
-- Zweck: Review Queue, Detailansicht, Approve/Correct/Reject, Audit Trail
-- Integration via API mit n8n
-
-### 15.1 API-Vertrag
-
-**n8n -> UI**
-
-- `POST /api/n8n/intake`
-  - Legt einen Review-Fall mit Evidence-Objekt an
-
-**UI -> n8n**
-
-- `POST /api/review/decision`
-  - Speichert Human-Entscheidung
-  - Sendet optional Callback an n8n (`callbackUrl` oder Default-URL)
-
-### 15.2 n8n-Node-Empfehlung im Coordinator-Flow
-
-Nach `run_energy_expert_agent`:
-
-1. `Set` Node: Evidence-Objekt bauen
-2. `IF` Node: HITL-Regelprüfung
-3. Bei HITL=true: `HTTP Request` an Review UI Intake
-4. `Wait for Webhook`: auf Review Callback warten
-5. `IF reviewStatus`: approve/correct/reject verzweigen
-
-### 15.3 KPI für Qualität und Governance
+### 10.5 KPIs für Qualität und Governance
 
 - Correction Rate pro Agent
 - False-Positive-Rate im Weak-Signal-Filter
@@ -1178,19 +788,19 @@ Nach `run_energy_expert_agent`:
 
 ---
 
-## Anhang: Schnell-Referenz PESTEL-Suchbegriffe
+## Anhang: PESTEL-Suchbegriffe
 
 Aus Anhang 1 der Seminararbeit – für den Scanning Agent:
 
-| Kategorie | Suchbegriffe | Quellen |
-|---|---|---|
-| **P** Political | EEG-Novelle, Kapazitätsmarkt Konsultation, H2-Importstrategie, Embargo | BMWK, DG Energy |
-| **E** Economic | Merit-Order-Spread, Netzentgelte, CO2-Preis Prognose, LCOE Solar | SMARD.de, EEX |
-| **S** Social | Bürgerenergie Akzeptanz, Energiearmut, Wärmepumpen-Check, Prosumer Trend | BDEW, Sonnenseite |
-| **T** Technological | Solid State Battery, AEM Electrolyzer, V2G Standardisierung, AI-Grid-Optimization | arXiv, IEA, Energy-Charts |
-| **En** Environmental | Dürreperiode Kraftwerkskühlung, Kritische Rohstoffe, Methan-Emissionen | EEA, DWD Open Data |
-| **L** Legal | RED III Umsetzung, EnWG-Novelle, Netzausbaubeschleunigungsgesetz | EUR-Lex, Bundesgesetzblatt |
+| Kategorie         | Suchbegriffe                                                            | Quellen                          |
+|---                |---                                                                       |---                               |
+| **P** Political   | EEG-Novelle, Kapazitätsmarkt Konsultation, H2-Importstrategie, Embargo  | BMWK, DG Energy                  |
+| **E** Economic    | Merit-Order-Spread, Netzentgelte, CO2-Preis Prognose, LCOE Solar        | SMARD.de, EEX                    |
+| **S** Social      | Bürgerenergie Akzeptanz, Energiearmut, Wärmepumpen-Check, Prosumer Trend| BDEW, Sonnenseite                |
+| **T** Technological| Solid State Battery, AEM Electrolyzer, V2G Standardisierung, AI-Grid   | arXiv, IEA, Energy-Charts        |
+| **En** Environmental| Dürreperiode Kraftwerkskühlung, Kritische Rohstoffe, Methan-Emissionen | EEA, DWD Open Data               |
+| **L** Legal       | RED III Umsetzung, EnWG-Novelle, Netzausbaubeschleunigungsgesetz        | EUR-Lex, Bundesgesetzblatt       |
 
 ---
 
-*Dokumentation erstellt auf Basis der Seminararbeit „AI-Driven Foresight" (Gruppe 11, DHBW Stuttgart, Februar 2026)*
+*Dokumentation auf Basis der Seminararbeit „AI-Driven Foresight" (Gruppe 11, DHBW Stuttgart, Februar 2026). Implementations-Architektur in `WORKFLOW_ARCHITECTURE.md`.*
