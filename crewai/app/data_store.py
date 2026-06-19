@@ -1,3 +1,12 @@
+"""Persistence layer: a single-file JSON store (state.json).
+
+Holds the entire application state — search-term config, workflow runs and
+signal cases — as one Pydantic-serialised document. Writes are atomic and
+guarded by a process-wide reentrant lock so concurrent worker threads cannot
+corrupt or clobber the file. A flat file is intentional for a self-hosted
+seminar prototype; migrating to SQLite is noted as future work.
+"""
+
 from __future__ import annotations
 
 import json

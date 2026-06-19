@@ -1,3 +1,13 @@
+"""Orchestration of the multi-agent foresight pipeline.
+
+Runs the four sequential stages — Scanning -> Assessment -> Energy Expert ->
+Scenario Integration — with a Human-in-the-Loop (HITL) gate between the Expert
+and Scenario stages. Each stage is summarised by an LLM (see crew_layer); the
+per-case classification and validation calls are parallelised across a thread
+pool. The methodological background (Ansoff weak-signal scale, PESTEL, §1 EnWG
+Zieldreieck) is documented in MAS_Foresight_Architektur.md.
+"""
+
 from __future__ import annotations
 
 import threading
@@ -19,6 +29,9 @@ from app.models import SignalCase, SourceItem, WorkflowRun, WorkflowStep
 from app.sources import search_sources
 
 
+# Keyword tokens that raise the heuristic confidence of a candidate. These are
+# only used by the offline fallback (_confidence) when no LLM is available; the
+# primary classification path is the LLM in crew_layer.classify_case.
 _SIGNAL_TERMS = [
     "reform",
     "market",
@@ -48,6 +61,14 @@ def _finish_step(step: WorkflowStep, detail: dict) -> WorkflowStep:
 
 
 def _confidence(term: str, source: SourceItem) -> float:
+    """Heuristic confidence baseline used as the offline fallback for the LLM
+    classifier. The weights are hand-tuned, not learned:
+    - base = 0.42: a neutral prior, deliberately below the 0.62 signal cutoff so
+      a candidate needs positive evidence to count as a signal.
+    - +0.07 per matched signal token: rewards topical keyword overlap.
+    - +0.20 * trust_score: weights source credibility (see sources.py trust
+      scores). Capped to [0, 1].
+    """
     base = 0.42
     token_hits = sum(1 for token in _SIGNAL_TERMS if token in term.lower() or token in source.snippet.lower())
     score = base + token_hits * 0.07 + source.trust_score * 0.2
@@ -55,6 +76,13 @@ def _confidence(term: str, source: SourceItem) -> float:
 
 
 def _ansoff_level(term: str) -> int:
+    """Heuristic mapping of a search term to the Ansoff weak-signal scale (1-4),
+    used as the offline fallback for the LLM classifier. Following Ansoff's
+    information levels: 1 = vague sense of threat, 2 = source known,
+    3 = threat/opportunity characterised, 4 = response known. Mature market
+    topics score higher (more characterised); emerging tech like hydrogen ranks
+    highest as a strategic weak signal. See MAS_Foresight_Architektur.md.
+    """
     if "market" in term or "capacity" in term:
         return 3
     if "hydrogen" in term or "storage" in term:
@@ -78,6 +106,8 @@ def _classify_one(
     term = item["keyword"]
     source: SourceItem = item["source"]
 
+    # 0.62 is the heuristic signal/noise cutoff: with base=0.42, a candidate
+    # needs roughly two signal-token hits or a high trust score to clear it.
     heuristic_conf = _confidence(term, source)
     heuristic = Classification(
         is_signal=heuristic_conf >= 0.62,
@@ -157,10 +187,17 @@ def _validate_one(case: SignalCase, focus: str) -> str:
     case.time_horizon = expert.time_horizon
     case.zieldreieck_impact = dict(expert.zieldreieck_impact)
 
-    # Combine domain verdict with confidence threshold to decide status:
-    # - Domain-rejected by expert overrides everything → rejected
-    # - Otherwise: high-confidence signal → validated, mid-confidence signal →
-    #   awaiting_review, noise stays rejected
+    # Combine the expert's domain verdict with the confidence to decide status.
+    # The 0.72 cutoff defines the Human-in-the-Loop band: signals the model is
+    # confident about (>= 0.72) auto-validate, while mid-confidence signals
+    # (signal but < 0.72) are routed to awaiting_review so a human makes the
+    # call. The value is a deliberately conservative operating point — high
+    # enough to keep auto-validation trustworthy, low enough to keep the manual
+    # review queue manageable. Decision order:
+    # - Domain-rejected by the expert overrides everything -> rejected
+    # - High-confidence signal -> validated
+    # - Mid-confidence signal  -> awaiting_review (HITL gate)
+    # - Noise                  -> rejected
     if not expert.is_valid:
         case.validation_status = "rejected"
     elif case.is_signal and case.confidence >= 0.72:

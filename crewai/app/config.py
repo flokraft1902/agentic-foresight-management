@@ -1,3 +1,10 @@
+"""Application configuration, loaded from environment / .env via pydantic-settings.
+
+Centralises all tunables — LLM provider/model and parallelism, server host/port,
+data directory, CORS origins and the default scanning focus/terms — so they can
+be overridden per environment without touching code.
+"""
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

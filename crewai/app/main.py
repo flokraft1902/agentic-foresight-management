@@ -1,3 +1,12 @@
+"""HTTP layer: the FastAPI application exposing the foresight backend.
+
+Defines the REST endpoints the Next.js console talks to — start/resume/list a
+workflow, read runs and cases, submit human reviews, manage search terms and
+health probes. Workflow execution runs in background threads so the API returns
+immediately and the UI polls for progress. The pipeline logic itself lives in
+workflow.py; this module is only the transport + request validation.
+"""
+
 from __future__ import annotations
 
 import threading

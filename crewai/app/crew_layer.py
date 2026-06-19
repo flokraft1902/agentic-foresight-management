@@ -1,3 +1,15 @@
+"""LLM layer for the foresight agents.
+
+Wraps all provider calls (via LiteLLM) behind small, typed functions — one per
+agent task: classify_case (Assessment Agent), validate_case_expert (Energy
+Expert Agent), suggest_search_terms (follow-up scanning), and summarize_stage
+(streamed stage narratives). Every call validates and clamps the model output
+against the expected schema and falls back to a deterministic heuristic on any
+failure, so the pipeline never blocks on a bad LLM response. The energy-domain
+knowledge framework embedded in the prompts is described in
+MAS_Foresight_Architektur.md.
+"""
+
 from __future__ import annotations
 
 import json
@@ -42,7 +54,13 @@ class Classification:
     source: str  # "llm" | "heuristic"
 
 
+# Allowed classification values, used to validate the LLM output. Any value
+# outside these sets is treated as unparseable and dropped.
+# PESTEL macro-environment categories: Political, Economic, Social,
+# Technological, Environmental (En), Legal.
 _VALID_PESTEL = {"P", "E", "S", "T", "En", "L"}
+# Dimensions of the German energy-policy triangle (Zieldreieck, §1 EnWG):
+# economic efficiency, security of supply, environmental compatibility.
 _VALID_ZIELDREIECK = {"wirtschaftlichkeit", "versorgungssicherheit", "umweltvertraeglichkeit"}
 
 
@@ -314,6 +332,10 @@ def suggest_search_terms(
 
 
 def _default_expert_heuristic(confidence: float) -> ExpertValidation:
+    # Offline fallback when no expert LLM call is available: derive a coarse
+    # systemic-impact band from the assessment confidence alone. Thresholds
+    # (>= 0.82 HOCH, >= 0.6 MITTEL, else GERING) are heuristic, mirroring the
+    # idea that only high-confidence signals are assumed system-relevant.
     impact = "HOCH" if confidence >= 0.82 else "MITTEL" if confidence >= 0.6 else "GERING"
     return ExpertValidation(
         is_valid=True,

@@ -1,3 +1,12 @@
+"""Environmental scanning: the data-acquisition layer of the foresight pipeline.
+
+Implements a hybrid scan over curated RSS feeds and site-restricted DuckDuckGo
+queries against trusted German/EU energy-sector domains, with a deterministic
+synthetic fallback when no live source is reachable (keeps demos/offline runs
+working). Network I/O runs in parallel; merge and deduplication stay sequential
+to keep results reproducible.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +30,10 @@ class Feed:
 
 
 # Curated RSS feeds reachable without API keys.
-# Trust scores reflect editorial quality and topic relevance for energy foresight.
+# trust_score is a hand-assigned credibility weight on a 0-1 scale, reflecting
+# editorial quality and energy-topic relevance. It feeds into the heuristic
+# confidence baseline (workflow._confidence) and is surfaced per case in the UI.
+# Government/regulator sources rank highest (~0.9), curated trade press lower.
 FEEDS: list[Feed] = [
     Feed("Clean Energy Wire", "https://www.cleanenergywire.org/rss.xml", 0.88),
     Feed("Energy Monitor", "https://www.energymonitor.ai/feed", 0.78),
@@ -32,6 +44,8 @@ FEEDS: list[Feed] = [
 _HTTP_TIMEOUT = 8.0
 _USER_AGENT = "Mozilla/5.0 (compatible; ForesightAgent/1.0; +https://example.local)"
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+# Cap the candidates kept per search term to bound the per-run case count (and
+# thus LLM cost); RSS matches are ranked by recency before this cut applies.
 _MAX_HITS_PER_TERM = 4
 _DDG_MAX_RESULTS = 8
 

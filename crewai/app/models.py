@@ -1,3 +1,11 @@
+"""Pydantic domain models — the single source of truth for the data schema.
+
+Defines the entities that flow through the pipeline and across the API
+(SourceItem, SignalCase, WorkflowRun/Step, request/response bodies) and the
+overall AppState persisted by data_store. The TypeScript interfaces in the
+frontend (ui/workflow-console/lib/types.ts) mirror these by hand.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
