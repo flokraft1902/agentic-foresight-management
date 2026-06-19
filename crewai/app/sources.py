@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from time import mktime
 
 import feedparser
@@ -188,7 +189,7 @@ def _fallback_score(text: str) -> float:
 
 def _fallback_sources(search_terms: list[str]) -> list[dict]:
     items: list[dict] = []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     for i, term in enumerate(search_terms):
         for j in range(2):
             base = _FALLBACK_BASE_URLS[(i + j) % len(_FALLBACK_BASE_URLS)]
@@ -215,10 +216,26 @@ def _fallback_sources(search_terms: list[str]) -> list[dict]:
 
 
 def search_sources(search_terms: list[str]) -> list[dict]:
-    # 1) RSS feeds (run once, filter per term)
+    # Network I/O runs in parallel; the merge + dedup below stays sequential so
+    # the result is fully deterministic regardless of completion order. Each
+    # feed is fetched exactly once and each term queried exactly once — parallel
+    # execution only overlaps the waiting, it never re-scans a source.
+
+    # 1) RSS feeds in parallel (each fetched once, then filtered per term).
     rss_entries: list[dict] = []
-    for feed in FEEDS:
-        rss_entries.extend(_fetch_feed(feed))
+    with ThreadPoolExecutor(max_workers=max(len(FEEDS), 1)) as pool:
+        for entries in pool.map(_fetch_feed, FEEDS):
+            rss_entries.extend(entries)
+
+    # 2) Site-restricted DuckDuckGo search per term, in parallel. Results are
+    #    keyed by term so the assembly step below can read them deterministically.
+    ddg_by_term: dict[str, list[dict]] = {}
+    if search_terms:
+        with ThreadPoolExecutor(max_workers=min(len(search_terms), 8)) as pool:
+            futures = {pool.submit(_ddg_search_term, term): term for term in search_terms}
+            for fut in as_completed(futures):
+                term = futures[fut]
+                ddg_by_term[term] = fut.result()
 
     items: list[dict] = []
     seen: set[tuple[str, str]] = set()
@@ -230,8 +247,7 @@ def search_sources(search_terms: list[str]) -> list[dict]:
         rss_matches = [entry for entry in rss_entries if _entry_matches_term(entry, term)]
         rss_matches.sort(key=lambda e: e.get("published") or "", reverse=True)
 
-        # 2) DuckDuckGo (per term) – gives us German + bot-blocked sources
-        ddg_matches = _ddg_search_term(term)
+        ddg_matches = ddg_by_term.get(term, [])
 
         rss_hit_counts[term] = len(rss_matches)
         ddg_hit_counts[term] = len(ddg_matches)

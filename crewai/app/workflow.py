@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.config import settings
@@ -12,7 +14,7 @@ from app.crew_layer import (
     summarize_stage,
     validate_case_expert,
 )
-from app.data_store import get_search_terms, lookup_url_history, upsert_cases, upsert_run
+from app.data_store import build_url_history, get_search_terms, upsert_cases, upsert_run
 from app.models import SignalCase, SourceItem, WorkflowRun, WorkflowStep
 from app.sources import search_sources
 
@@ -31,7 +33,7 @@ _SIGNAL_TERMS = [
 
 
 def _now() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _start_step(name: str) -> WorkflowStep:
@@ -62,12 +64,121 @@ def _ansoff_level(term: str) -> int:
     return 1
 
 
+def _classify_one(
+    item: dict,
+    run: WorkflowRun,
+    focus: str,
+    url_history: dict[str, tuple[str, str, int]],
+) -> tuple[SignalCase, str]:
+    """Classify a single scanned item into a SignalCase. Self-contained so it
+    can run inside a ThreadPoolExecutor worker — it only reads local data and
+    the shared read-only url_history map (no per-case state load). Returns the
+    case plus whether the classification came from the LLM or the heuristic
+    fallback."""
+    term = item["keyword"]
+    source: SourceItem = item["source"]
+
+    heuristic_conf = _confidence(term, source)
+    heuristic = Classification(
+        is_signal=heuristic_conf >= 0.62,
+        confidence=heuristic_conf,
+        ansoff_level=_ansoff_level(term),
+        rationale=(
+            "Heuristic baseline: trust-score and keyword tokens suggest "
+            f"a {'signal' if heuristic_conf >= 0.62 else 'noise'} candidate for '{term}'."
+        ),
+        pestel_category=None,
+        zieldreieck_dimensions=[],
+        source="heuristic",
+    )
+
+    classification = classify_case(
+        term=term,
+        title=source.title,
+        snippet=source.snippet,
+        focus=focus,
+        published=source.published_at,
+        heuristic_fallback=heuristic,
+    )
+
+    prior = url_history.get(source.url)
+    if prior is None:
+        first_seen_run_id = run.run_id
+        first_seen_at = run.created_at
+        seen_count = 1
+    else:
+        prior_run_id, prior_at, prior_count = prior
+        first_seen_run_id = prior_run_id
+        first_seen_at = prior_at
+        seen_count = prior_count + 1
+
+    case = SignalCase(
+        case_id=f"case_{uuid4().hex[:10]}",
+        run_id=run.run_id,
+        keyword=term,
+        title=source.title,
+        rationale=classification.rationale,
+        confidence=classification.confidence,
+        is_signal=classification.is_signal,
+        ansoff_level=classification.ansoff_level,
+        pestel_category=classification.pestel_category,
+        zieldreieck_dimensions=list(classification.zieldreieck_dimensions),
+        validation_status="pending",
+        sources=[source],
+        first_seen_run_id=first_seen_run_id,
+        first_seen_at=first_seen_at,
+        seen_count=seen_count,
+    )
+    return case, classification.source
+
+
+def _validate_one(case: SignalCase, focus: str) -> str:
+    """Run the energy-expert domain check on a single case, mutating it in
+    place. Each worker owns a distinct case object, so the in-place writes are
+    thread-safe. Sets expert fields and the resulting validation_status, and
+    returns whether the verdict came from the LLM or the heuristic fallback."""
+    snippet = case.sources[0].snippet if case.sources else ""
+
+    expert = validate_case_expert(
+        title=case.title,
+        snippet=snippet,
+        term=case.keyword,
+        focus=focus,
+        is_signal=case.is_signal,
+        confidence=case.confidence,
+        ansoff_level=case.ansoff_level,
+        pestel_category=case.pestel_category,
+        zieldreieck_dimensions=list(case.zieldreieck_dimensions),
+    )
+
+    case.expert_comment = expert.rationale
+    case.expert_valid = expert.is_valid
+    case.systemic_impact = expert.systemic_impact  # type: ignore[assignment]
+    case.time_horizon = expert.time_horizon
+    case.zieldreieck_impact = dict(expert.zieldreieck_impact)
+
+    # Combine domain verdict with confidence threshold to decide status:
+    # - Domain-rejected by expert overrides everything → rejected
+    # - Otherwise: high-confidence signal → validated, mid-confidence signal →
+    #   awaiting_review, noise stays rejected
+    if not expert.is_valid:
+        case.validation_status = "rejected"
+    elif case.is_signal and case.confidence >= 0.72:
+        case.validation_status = "validated"
+    elif case.is_signal:
+        case.validation_status = "awaiting_review"
+    else:
+        case.validation_status = "rejected"
+
+    return expert.source
+
+
 def prepare_run(search_terms: list[str] | None = None, focus: str | None = None) -> WorkflowRun:
     resolved_terms = search_terms or get_search_terms().search_terms
     resolved_focus = focus or settings.default_focus
 
     run = WorkflowRun(
-        run_id=f"run_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}",
+        run_id=f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}",
         created_at=_now(),
         updated_at=_now(),
         focus=resolved_focus,
@@ -148,84 +259,50 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
     step_assess.detail = {"progress": {"classified": 0, "total": len(scanned)}}
     upsert_run(run)
 
-    cases: list[SignalCase] = []
+    total = len(scanned)
+    ordered: list[SignalCase | None] = [None] * total
     llm_count = 0
     heuristic_count = 0
+    done = 0
+    progress_lock = threading.Lock()
 
-    for idx, item in enumerate(scanned, start=1):
-        term = item["keyword"]
-        source: SourceItem = item["source"]
+    # Precompute the cross-run URL history once (single state scan) and share the
+    # read-only map with all workers, instead of each worker reloading + scanning
+    # the whole store per case.
+    url_history = build_url_history(exclude_run_id=run.run_id)
 
-        heuristic_conf = _confidence(term, source)
-        heuristic = Classification(
-            is_signal=heuristic_conf >= 0.62,
-            confidence=heuristic_conf,
-            ansoff_level=_ansoff_level(term),
-            rationale=(
-                "Heuristic baseline: trust-score and keyword tokens suggest "
-                f"a {'signal' if heuristic_conf >= 0.62 else 'noise'} candidate for '{term}'."
-            ),
-            pestel_category=None,
-            zieldreieck_dimensions=[],
-            source="heuristic",
-        )
+    # Classify candidates in parallel: each item is an independent blocking LLM
+    # call, so a small thread pool turns N sequential round-trips into ~N/workers.
+    # The progress_lock serializes the shared counters and the state.json write,
+    # so the UI still polls a coherent "classified / total" as results land.
+    with ThreadPoolExecutor(max_workers=settings.llm_max_workers) as pool:
+        future_to_idx = {
+            pool.submit(_classify_one, item, run, resolved_focus, url_history): i
+            for i, item in enumerate(scanned)
+        }
+        for fut in as_completed(future_to_idx):
+            i = future_to_idx[fut]
+            case, src = fut.result()
+            ordered[i] = case
+            with progress_lock:
+                if src == "llm":
+                    llm_count += 1
+                else:
+                    heuristic_count += 1
+                done += 1
+                if done % 3 == 0 or done == total:
+                    built = [c for c in ordered if c is not None]
+                    step_assess.detail = {
+                        "progress": {"classified": done, "total": total},
+                        "llm_classified": llm_count,
+                        "heuristic_classified": heuristic_count,
+                        "signal_count": len([c for c in built if c.is_signal]),
+                        "noise_count": len([c for c in built if not c.is_signal]),
+                    }
+                    run.updated_at = _now()
+                    upsert_run(run)
 
-        classification = classify_case(
-            term=term,
-            title=source.title,
-            snippet=source.snippet,
-            focus=resolved_focus,
-            published=source.published_at,
-            heuristic_fallback=heuristic,
-        )
-
-        if classification.source == "llm":
-            llm_count += 1
-        else:
-            heuristic_count += 1
-
-        prior_run_id, prior_at, prior_count = lookup_url_history(
-            source.url, exclude_run_id=run.run_id
-        )
-        if prior_count == 0:
-            first_seen_run_id = run.run_id
-            first_seen_at = run.created_at
-            seen_count = 1
-        else:
-            first_seen_run_id = prior_run_id
-            first_seen_at = prior_at
-            seen_count = prior_count + 1
-
-        case = SignalCase(
-            case_id=f"case_{uuid4().hex[:10]}",
-            run_id=run.run_id,
-            keyword=term,
-            title=source.title,
-            rationale=classification.rationale,
-            confidence=classification.confidence,
-            is_signal=classification.is_signal,
-            ansoff_level=classification.ansoff_level,
-            pestel_category=classification.pestel_category,
-            zieldreieck_dimensions=list(classification.zieldreieck_dimensions),
-            validation_status="pending",
-            sources=[source],
-            first_seen_run_id=first_seen_run_id,
-            first_seen_at=first_seen_at,
-            seen_count=seen_count,
-        )
-        cases.append(case)
-
-        # Stream progress every few cases so the UI can poll it live.
-        if idx % 3 == 0 or idx == len(scanned):
-            step_assess.detail = {
-                "progress": {"classified": idx, "total": len(scanned)},
-                "llm_classified": llm_count,
-                "heuristic_classified": heuristic_count,
-                "signal_count": len([c for c in cases if c.is_signal]),
-                "noise_count": len([c for c in cases if not c.is_signal]),
-            }
-            run.updated_at = _now()
-            upsert_run(run)
+    cases: list[SignalCase] = [c for c in ordered if c is not None]
 
     assess_summary = summarize_stage(
         stage_name="Assessment Agent",
@@ -266,59 +343,36 @@ def execute_run(run: WorkflowRun) -> WorkflowRun:
     expert_llm_count = 0
     expert_heuristic_count = 0
     domain_rejected_count = 0
+    expert_done = 0
+    expert_total = len(cases)
+    expert_lock = threading.Lock()
 
-    for idx, case in enumerate(cases, start=1):
-        snippet = case.sources[0].snippet if case.sources else ""
-
-        expert = validate_case_expert(
-            title=case.title,
-            snippet=snippet,
-            term=case.keyword,
-            focus=resolved_focus,
-            is_signal=case.is_signal,
-            confidence=case.confidence,
-            ansoff_level=case.ansoff_level,
-            pestel_category=case.pestel_category,
-            zieldreieck_dimensions=list(case.zieldreieck_dimensions),
-        )
-
-        case.expert_comment = expert.rationale
-        case.expert_valid = expert.is_valid
-        case.systemic_impact = expert.systemic_impact  # type: ignore[assignment]
-        case.time_horizon = expert.time_horizon
-        case.zieldreieck_impact = dict(expert.zieldreieck_impact)
-
-        # Combine domain verdict with confidence threshold to decide status:
-        # - Domain-rejected by expert overrides everything → rejected
-        # - Otherwise: high-confidence signal → validated, mid-confidence signal → awaiting_review,
-        #   noise stays rejected
-        if not expert.is_valid:
-            case.validation_status = "rejected"
-            domain_rejected_count += 1
-        elif case.is_signal and case.confidence >= 0.72:
-            case.validation_status = "validated"
-        elif case.is_signal:
-            case.validation_status = "awaiting_review"
-        else:
-            case.validation_status = "rejected"
-
-        if expert.source == "llm":
-            expert_llm_count += 1
-        else:
-            expert_heuristic_count += 1
-
-        if idx % 3 == 0 or idx == len(cases):
-            step_expert.detail = {
-                "progress": {"validated": idx, "total": len(cases)},
-                "llm_validated": expert_llm_count,
-                "heuristic_validated": expert_heuristic_count,
-                "domain_rejected": domain_rejected_count,
-                "validated_count": len([c for c in cases if c.validation_status == "validated"]),
-                "awaiting_review_count": len([c for c in cases if c.validation_status == "awaiting_review"]),
-                "rejected_count": len([c for c in cases if c.validation_status == "rejected"]),
-            }
-            run.updated_at = _now()
-            upsert_run(run)
+    # Same parallel pattern as Assessment: each case is one blocking expert LLM
+    # call. _validate_one mutates its own case in place; the lock guards only the
+    # shared counters and the progress write.
+    with ThreadPoolExecutor(max_workers=settings.llm_max_workers) as pool:
+        futures = [pool.submit(_validate_one, case, resolved_focus) for case in cases]
+        for fut in as_completed(futures):
+            src = fut.result()
+            with expert_lock:
+                if src == "llm":
+                    expert_llm_count += 1
+                else:
+                    expert_heuristic_count += 1
+                expert_done += 1
+                domain_rejected_count = len([c for c in cases if c.expert_valid is False])
+                if expert_done % 3 == 0 or expert_done == expert_total:
+                    step_expert.detail = {
+                        "progress": {"validated": expert_done, "total": expert_total},
+                        "llm_validated": expert_llm_count,
+                        "heuristic_validated": expert_heuristic_count,
+                        "domain_rejected": domain_rejected_count,
+                        "validated_count": len([c for c in cases if c.validation_status == "validated"]),
+                        "awaiting_review_count": len([c for c in cases if c.validation_status == "awaiting_review"]),
+                        "rejected_count": len([c for c in cases if c.validation_status == "rejected"]),
+                    }
+                    run.updated_at = _now()
+                    upsert_run(run)
 
     validated_count = len([c for c in cases if c.validation_status == "validated"])
 

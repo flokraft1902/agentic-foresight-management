@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,16 +28,22 @@ app = FastAPI(title="CrewAI Foresight Backend", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+def _now() -> str:
+    # Timezone-aware UTC, formatted with a trailing "Z" to match the timestamps
+    # produced in workflow.py (datetime.utcnow() is deprecated in 3.12+).
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "service": "crewai-foresight-backend", "at": datetime.utcnow().isoformat() + "Z"}
+    return {"ok": True, "service": "crewai-foresight-backend", "at": _now()}
 
 
 @app.get("/llm/health")
@@ -49,7 +55,7 @@ def llm_health() -> dict:
         "model": settings.llm_model,
         "api_key_present": bool(settings.llm_api_key),
         "detail": probe.detail,
-        "at": datetime.utcnow().isoformat() + "Z",
+        "at": _now(),
     }
 
 
@@ -68,8 +74,6 @@ def write_search_terms(payload: UpdateSearchTermsRequest) -> dict:
 
 
 def _background_execute(run_id: str) -> None:
-    from app.data_store import get_run
-
     run = get_run(run_id)
     if run is None:
         return
@@ -79,14 +83,12 @@ def _background_execute(run_id: str) -> None:
         traceback.print_exc()
         latest = get_run(run_id) or run
         latest.status = "failed"
-        latest.updated_at = datetime.utcnow().isoformat() + "Z"
+        latest.updated_at = _now()
         latest.summary = {**latest.summary, "error": "execution failed; see backend logs"}
         upsert_run(latest)
 
 
 def _background_resume(run_id: str) -> None:
-    from app.data_store import get_run
-
     try:
         resume_run(run_id)
     except Exception:
@@ -95,13 +97,24 @@ def _background_resume(run_id: str) -> None:
         if latest is None:
             return
         latest.status = "failed"
-        latest.updated_at = datetime.utcnow().isoformat() + "Z"
+        latest.updated_at = _now()
         latest.summary = {**latest.summary, "error": "resume failed; see backend logs"}
         upsert_run(latest)
 
 
 @app.post("/workflow/start")
 def start_workflow(payload: StartWorkflowRequest) -> dict:
+    # Only one workflow may execute at a time: concurrent runs would have
+    # multiple background threads mutating the same flat-file store. (A run
+    # paused for HITL review counts as inactive, so review never blocks a start.)
+    if has_active_run():
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Es läuft bereits ein Workflow. Warte, bis er abgeschlossen oder "
+                "pausiert ist, bevor du einen neuen startest."
+            ),
+        )
     run = prepare_run(search_terms=payload.search_terms, focus=payload.focus)
     thread = threading.Thread(target=_background_execute, args=(run.run_id,), daemon=True)
     thread.start()
@@ -212,7 +225,7 @@ def review_case(case_id: str, payload: ReviewCaseRequest) -> dict:
         case.rationale = payload.corrected_rationale
     case.reviewer_comment = payload.comment
     case.reviewed_by = payload.reviewer
-    case.reviewed_at = datetime.utcnow().isoformat() + "Z"
+    case.reviewed_at = _now()
 
     # Human review is a decisive vote: signal => validated, noise => rejected.
     case.validation_status = "validated" if case.is_signal else "rejected"
