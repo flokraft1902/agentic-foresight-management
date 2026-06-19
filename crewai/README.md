@@ -33,7 +33,13 @@ zusammenfassende Analyse zurück in die Workflow-Console-UI.
   Polling live.
 - **Asynchrone Run-Ausführung** in einem Hintergrund-Thread; `POST
   /workflow/start` kehrt sofort zurück, der Client pollt `GET
-  /workflow/{run_id}` alle 1.5 s.
+  /workflow/{run_id}` alle 750 ms. Es darf immer nur ein Run gleichzeitig
+  laufen (`POST /workflow/start` gibt 409, wenn bereits ein Run aktiv ist);
+  verwaiste Runs nach einem Crash/Reload werden vor dem nächsten Start
+  automatisch als `failed` markiert.
+- **Parallelisierte LLM-Stages**: die Per-Case-Calls in Assessment und Expert
+  laufen über einen Thread-Pool (`LLM_MAX_WORKERS`, Default 5); das Scanning
+  holt RSS-Feeds und DuckDuckGo-Queries ebenfalls parallel.
 - **Live-Progress** in Assessment und Expert-Stage: Fortschrittsbalken
   (`progress.classified/total` bzw. `progress.validated/total`) plus LLM-vs-
   Heuristik-Counter werden alle 3 Cases auf Disk geschrieben.
@@ -111,15 +117,22 @@ API-Docs: http://127.0.0.1:8000/docs
   - `summarize_stage(…, on_chunk)` → Streaming-Aufruf, Callback erhält
     akkumulierte Tokens
 - **`app/workflow.py`** — `prepare_run()` legt den Run-Eintrag an,
-  `execute_run()` durchläuft Scanning + Assessment + Expert; bei Cases im
+  `execute_run()` durchläuft Scanning + Assessment + Expert (die Per-Case-LLM-
+  Calls in Assessment und Expert laufen parallel über einen Thread-Pool); bei Cases im
   Status `awaiting_review` setzt es `run.status = "awaiting_review"` und
   **stoppt** vor dem Scenario-Step. `resume_run(run_id)` setzt nach dem
   Human-Review im Scenario-Step fort. `_run_scenario_step(run, cases)` wird
   von beiden Pfaden geteilt.
-- **`app/data_store.py`** — flat-file JSON store (`data/state.json`); `list_runs`,
-  `clear_history`, `has_active_run` für die History-Funktionen.
+- **`app/data_store.py`** — flat-file JSON store (`data/state.json`). Schreibt
+  atomar (Temp-Datei + `os.replace`) und serialisiert alle Read-Modify-Write-
+  Zugriffe über ein reentrantes Lock, sodass parallele Worker-Threads den State
+  nicht korrumpieren. Enthält `list_runs`, `clear_history`, `has_active_run`,
+  `reap_stale_runs` (verwaiste Runs abräumen) und `build_url_history`
+  (Cross-Run-URL-Dedup in einem Scan).
 - **`app/main.py`** — FastAPI-Routen; `POST /workflow/start` und `POST
   /workflow/{run_id}/resume` spawnen jeweils einen `daemon` Thread.
+  `start` räumt zuvor verwaiste Runs ab und lehnt einen Start ab (409), wenn
+  bereits ein Run aktiv ist.
 
 ## Notes
 
@@ -136,5 +149,6 @@ API-Docs: http://127.0.0.1:8000/docs
 - OpenRouter-Free-Tier hat ein Tageslimit von ~50 Requests Account-weit. Bei
   einem typischen Workflow-Run schlucken Klassifikation + Expert + 4 Summaries
   schnell 20-30 Calls — Quota im Auge behalten.
-- Daten liegen in `data/state.json`. Diese Datei wird bei jedem Step-Update neu
-  geschrieben — für Dev/Single-User OK; für Produktion wäre SQLite sinnvoller.
+- Daten liegen in `data/state.json`. Diese Datei wird bei jedem Step-Update
+  atomar neu geschrieben (Temp-Datei + `os.replace`, Lock-geschützt) — für
+  Dev/Single-User OK; für Produktion wäre SQLite sinnvoller.

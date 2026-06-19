@@ -26,6 +26,7 @@ from app.data_store import (
     has_active_run,
     list_cases,
     list_runs,
+    reap_stale_runs,
     set_search_terms,
     upsert_case,
     upsert_run,
@@ -116,6 +117,8 @@ def start_workflow(payload: StartWorkflowRequest) -> dict:
     # Only one workflow may execute at a time: concurrent runs would have
     # multiple background threads mutating the same flat-file store. (A run
     # paused for HITL review counts as inactive, so review never blocks a start.)
+    # Reap orphaned runs first so a crashed/reloaded run can't block starts forever.
+    reap_stale_runs()
     if has_active_run():
         raise HTTPException(
             status_code=409,

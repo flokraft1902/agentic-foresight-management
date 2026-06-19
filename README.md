@@ -42,7 +42,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 # In .env eintragen: LLM_API_KEY (OpenRouter / Google AI Studio / Anthropic)
-# und LLM_MODEL anpassen (Default: openrouter/google/gemini-2.5-flash-lite)
+# und ggf. LLM_MODEL anpassen (Default: openrouter/nex-agi/nex-n2-pro:free)
 .venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -114,7 +114,7 @@ Persistenz, Frontend-Komponenten): [`WORKFLOW_ARCHITECTURE.md`](WORKFLOW_ARCHITE
 | Bereich  | Technologie |
 |---|---|
 | Backend  | Python 3.11, FastAPI, Pydantic v2 |
-| LLM      | LiteLLM (Provider-agnostisch — getestet mit Gemini Flash Lite via OpenRouter) |
+| LLM      | LiteLLM (Provider-agnostisch — Default `openrouter/nex-agi/nex-n2-pro:free`, jedes LiteLLM-Modell konfigurierbar) |
 | Quellen  | feedparser (RSS), `ddgs` (DuckDuckGo Site-Search) |
 | Persistenz | JSON-Flat-File (`crewai/data/state.json`) |
 | Frontend | Next.js 15 (App-Router), TypeScript, React 19 |

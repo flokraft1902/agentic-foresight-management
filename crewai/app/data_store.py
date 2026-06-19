@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import settings
@@ -167,9 +168,47 @@ def build_url_history(exclude_run_id: str | None = None) -> dict[str, tuple[str,
     return history
 
 
+def _parse_iso(ts: str | None) -> datetime | None:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def reap_stale_runs(max_age_seconds: float = 180.0) -> int:
+    """Mark 'running' runs whose updated_at is older than max_age_seconds as
+    'failed', returning how many were reaped.
+
+    A live run refreshes updated_at on every streaming chunk and progress write,
+    so a stale timestamp means its worker thread is gone (e.g. the server
+    reloaded or crashed mid-run). Without this, such an orphaned run would keep
+    has_active_run() True forever and the concurrency guard would block every
+    future start. The threshold is comfortably above the largest gap between
+    updates in a healthy run, so a genuinely active run is never reaped."""
+    now = datetime.now(timezone.utc)
+    with _LOCK:
+        state = load_state()
+        reaped = 0
+        for run in state.runs:
+            if run.status != "running":
+                continue
+            updated = _parse_iso(run.updated_at)
+            if updated is None or (now - updated).total_seconds() > max_age_seconds:
+                run.status = "failed"
+                run.summary = {**run.summary, "error": "run reaped as stale (worker no longer active)"}
+                run.updated_at = now.isoformat().replace("+00:00", "Z")
+                reaped += 1
+        if reaped:
+            save_state(state)
+    return reaped
+
+
 def has_active_run() -> bool:
     """Return True only if a workflow is genuinely mid-execution (not just
-    paused for HITL review)."""
+    paused for HITL review). Call reap_stale_runs() first to discount orphaned
+    runs left behind by a crash or reload."""
     state = load_state()
     return any(run.status == "running" for run in state.runs)
 

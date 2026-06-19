@@ -105,10 +105,10 @@ Sobald der User auf **Workflow starten** klickt:
 
 1. UI POST `/api/workflow/start` → Backend legt den Run an, gibt sofort die `run_id`
    zurück und führt die Pipeline in einem Daemon-Thread aus.
-2. UI startet einen 1.5-s-Polling-Loop auf `/api/workflow/{run_id}`.
+2. UI startet einen 750-ms-Polling-Loop auf `/api/workflow/{run_id}`.
 3. Jedes Polling aktualisiert Steps, Cases, KPI-Tiles, Progress-Bars und die
    Streaming-Pille.
-4. Alle ~6 s (jeder 4. Tick) wird die Run-History-Liste mitaktualisiert.
+4. Alle ~6 s (jeder 8. Tick) wird die Run-History-Liste mitaktualisiert.
 5. Wenn der Status auf `awaiting_review` wechselt: Polling stoppt, das
    HITL-Banner erscheint, der `Review nötig`-Filter-Chip pulsiert. Der User
    klickt sich durch die Cases (über Signal/Noise + Speichern) — sobald alle

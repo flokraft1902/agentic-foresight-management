@@ -139,7 +139,7 @@ Alle UI-Calls gehen über Next.js Server-Routes als Proxy zu FastAPI (Port 8000)
         │  │         pestel_category (P|E|S|T|En|L),        │   │
         │  │         zieldreieck_dimensions: [...],         │   │
         │  │         rationale}                             │   │
-        │  │     → Fallback: SHA-Heuristik bei Timeout/     │   │
+        │  │     → Fallback: Heuristik bei Timeout/         │   │
         │  │        Parse-Error/Quota                       │   │
         │  │                                                │   │
         │  │ Live-Progress: alle 3 Cases upsert_run() mit   │   │
@@ -296,13 +296,15 @@ SCANNING STEP
 Input:  search_terms[], focus
 
 Processing:
+  Netzwerk-I/O läuft parallel (Thread-Pool), Merge + Dedup bleiben sequenziell
+  und deterministisch.
   1. Fetch alle 4 RSS-Feeds parallel (httpx, 8s Timeout)
      Parse via feedparser, strip HTML aus title/summary.
-  2. Für jeden search_term:
+  2. DDG-Suche pro search_term parallel:
+     "{term} (site:bmwk.de OR site:heise.de OR ...)" via ddgs.text(..., region="de-de")
+  3. Danach sequenziell pro search_term:
      a. RSS-Matches: substring/token-match auf title+summary
-     b. DDG-Suche: "{term} (site:bmwk.de OR site:heise.de OR ...)"
-        via ddgs.text(..., region="de-de")
-     c. Merge RSS + DDG, sort by published desc, cap 4, dedup über (term,url)
+     b. Merge RSS + DDG, sort by published desc, cap 4, dedup über (term,url)
 
   Wenn 0 Hits global: _fallback_sources(terms) — synthetische Items mit
                       "[fallback]"-Snippet.
@@ -315,7 +317,8 @@ ASSESSMENT STEP
 Input: scanned SourceItems[]
 
 Processing:
-  FOR jeden Case:
+  url_history = build_url_history()   # einmaliger State-Scan für Cross-Run-Dedup
+  FOR jeden Case (parallel über Thread-Pool, LLM_MAX_WORKERS):
     heuristic_fallback = Classification(
       is_signal=(_confidence>=0.62), confidence=..., ansoff_level=...,
       pestel_category=None, zieldreieck_dimensions=[], source="heuristic"
@@ -335,7 +338,8 @@ Processing:
       validation_status = "pending"
     )
 
-  Alle 3 Cases: upsert_run() mit progress + llm/heuristic-counts
+  Alle 3 abgeschlossenen Cases: upsert_run() mit progress + llm/heuristic-counts
+  (Zähler + State-Write Lock-geschützt, da die Worker parallel laufen)
 
 
 EXPERT VALIDATION STEP
@@ -343,7 +347,7 @@ EXPERT VALIDATION STEP
 Input: SignalCase[] (mit PESTEL + Zieldreieck-Dims aus Assessment)
 
 Processing:
-  FOR jeden Case:
+  FOR jeden Case (parallel über Thread-Pool, LLM_MAX_WORKERS):
     expert = validate_case_expert(
       title, snippet, term, focus,
       is_signal, confidence, ansoff_level,
@@ -504,7 +508,7 @@ data/state.json
   ]
 }
 
-Schreibvorgänge:
+Schreibvorgänge (alle atomar: Temp-Datei + os.replace, Lock-geschützt):
   • Alle 3 klassifizierten Cases während Assessment
   • Alle 3 validierten Cases während Expert
   • Alle 0.5s während LLM-Streaming (gedrosselt)
@@ -512,6 +516,14 @@ Schreibvorgänge:
   • Bei jedem Case-Review (PUT /cases/{id}/review)
   • Beim Reset (DELETE /workflow)
   • Beim HITL-Gate (status → awaiting_review) und Resume (status → running)
+
+Nebenläufigkeit:
+  • Ein modul-globales reentrantes Lock serialisiert jeden Read-Modify-Write,
+    sodass die parallelen Worker-Threads (Assessment/Expert) und ein paralleler
+    Human-Review den State nicht gegenseitig überschreiben.
+  • Es läuft immer nur ein Workflow gleichzeitig (Guard in POST /workflow/start).
+  • reap_stale_runs() markiert verwaiste "running"-Runs (updated_at > 180s) vor
+    jedem Start als "failed", damit ein Crash/Reload keine Starts blockiert.
 ```
 
 ---
@@ -525,7 +537,9 @@ GET /llm/health                       Liveness-Probe mit echtem LLM-Mini-Call
 GET  /config/search-terms             aktuelle Suchbegriffe
 PUT  /config/search-terms             überschreiben
 
-POST   /workflow/start                Run starten, returnt sofort (run_id)
+POST   /workflow/start                Run starten, returnt sofort (run_id).
+                                       409 wenn bereits ein Run aktiv ist
+                                       (verwaiste Runs werden zuvor abgeräumt)
 GET    /workflow                      Run-Liste (limit Query, ohne steps-Detail)
 GET    /workflow/{run_id}             vollständiger Run inkl. steps + cases
 POST   /workflow/{run_id}/resume      HITL-pausierten Run fortsetzen
@@ -548,8 +562,8 @@ PUT /cases/{case_id}/review           Human-Review: setzt validated/rejected
 LLM_API_KEY fehlt / LLM nicht erreichbar / Quota überschritten
 ─────────────────────────────────────────────────────────────
 • Scanning: läuft (RSS+DDG unabhängig vom LLM)
-• Assessment: jeder Case fällt auf SHA-Heuristik zurück
-              llm_classified=0, heuristic_classified=alle
+• Assessment: jeder Case fällt auf die Token/Trust-Heuristik (_confidence)
+              zurück; llm_classified=0, heuristic_classified=alle
               PESTEL und Zieldreieck-Dims bleiben leer
 • Expert: jeder Case fällt auf _default_expert_heuristic zurück
           (systemic_impact aus confidence, leere zieldreieck_impact)
@@ -578,9 +592,12 @@ Expert-LLM rejected Case (is_valid=false)
 
 Run abgestürzt / uvicorn restart während Run
 ────────────────────────────────────────────
-• Run bleibt mit status="running" in state.json
-• Beim nächsten DELETE /workflow blockiert 409
-• User kann ?force=true setzen (UI bietet das automatisch nach 409 an)
+• Run bleibt zunächst mit status="running" in state.json (verwaist)
+• reap_stale_runs() markiert ihn beim nächsten POST /workflow/start
+  automatisch als "failed" (updated_at älter als 180s), sodass der neue Start
+  nicht durch den Concurrency-Guard (409) blockiert wird
+• Alternativ räumt DELETE /workflow?force=true verwaiste Runs manuell ab
+  (UI bietet force automatisch nach einem 409 an)
 ```
 
 ---
@@ -662,7 +679,7 @@ ui/workflow-console/
 
 - **Hybrid-Scanning** (RSS + DuckDuckGo Site-restricted Queries für deutsche
   Quellen, synthetischer Fallback)
-- **LLM-Klassifikation pro Case** im Assessment (statt SHA-Heuristik), inkl.
+- **LLM-Klassifikation pro Case** im Assessment (statt reiner Heuristik), inkl.
   PESTEL-Kategorie und Zieldreieck-Dimensionen
 - **LLM-Energy-Expert** mit Energiedomänen-Framework, liefert
   `systemic_impact`, `time_horizon` und Detailtexte pro Zieldreieck-Dimension
@@ -689,6 +706,17 @@ ui/workflow-console/
   hinzukommen (offen)
 - **Frontend-Refactor** in `components/` + `lib/` (page.tsx von 1969 auf
   ~630 Zeilen, 13 Komponenten)
+- **Parallelisierte LLM-Stages** — Per-Case-Calls in Assessment und Expert über
+  Thread-Pool (`LLM_MAX_WORKERS`); Scanning holt RSS + DDG ebenfalls parallel,
+  Merge/Dedup bleiben sequenziell-deterministisch
+- **Cross-Run-URL-History** in einem Scan vorberechnet (`build_url_history`)
+  statt pro Case — entfernt den quadratischen State-Scan
+- **Robuster State-Store** — atomare Writes (Temp + `os.replace`) und ein
+  reentrantes Lock gegen Clobbering durch parallele Threads
+- **Concurrency-Guard + Stale-Run-Reaper** — nur ein Run gleichzeitig (409),
+  verwaiste Runs nach Crash/Reload werden automatisch abgeräumt
+- **CORS konfigurierbar** — `CORS_ALLOW_ORIGINS` (Default `localhost:3000`)
+  statt Wildcard `["*"]`
 
 ### Offen — hohe Priorität
 
@@ -728,11 +756,12 @@ ui/workflow-console/
   `systemic_impact=HOCH`
 - **Cron / Scheduled Runs** — automatischer wöchentlicher Run
 - **Auth** auf den FastAPI-Endpunkten
-- **CORS** restriktiver konfigurieren (aktuell `allow_origins=["*"]`)
+- **In-Memory-State-Cache / SQLite** — Lese- und Schreibpfad des Stores
+  entlasten (Polling parst aktuell die ganze state.json pro Tick)
 
 ---
 
-**Stand:** 2026-06-18
+**Stand:** 2026-06-19
 **System:** Python/FastAPI Backend + Next.js Workflow Console
 **Persistenz:** flat JSON (`crewai/data/state.json`)
 **LLM-Provider:** beliebiges LiteLLM-kompatibles Modell, default OpenRouter
